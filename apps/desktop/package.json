@@ -1,0 +1,47 @@
+{
+  "name": "@an-tg/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AN Telegram Automation Platform — desktop app",
+  "author": "AN Telegram Platform",
+  "main": "src/main.js",
+  "scripts": {
+    "build:resources": "node build.js",
+    "dist:win": "node build.js && electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.annexus.an-telegram-platform",
+    "productName": "AN Telegram Platform",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": ".",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
