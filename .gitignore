@@ -1,0 +1,22 @@
+node_modules/
+.pnpm-store/
+dist/
+.next/
+.turbo/
+*.log
+.env
+.env.local
+.DS_Store
+coverage/
+.vscode/
+apps/desktop-agent/session/
+apps/desktop/resources/
+apps/desktop/release/
+*.tsbuildinfo
+
+# Local SQLite database + its WAL/journal files, and local-disk attachment storage
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/

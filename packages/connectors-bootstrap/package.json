@@ -1,0 +1,22 @@
+{
+  "name": "@an-tg/connectors-bootstrap",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@an-tg/database": "workspace:*",
+    "@an-tg/connectors-core": "workspace:*",
+    "@an-tg/connector-telegram-bot": "workspace:*",
+    "@an-tg/connector-custom-http": "workspace:*",
+    "@an-tg/connector-telegram-mtproto": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  }
+}

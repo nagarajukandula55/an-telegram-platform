@@ -1,0 +1,493 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SQLite: fully embedded, file-based, zero external services. The file
+// path is resolved relative to this schema, so it's the same file
+// regardless of which app (api/worker) starts Prisma, as long as
+// DATABASE_URL isn't overridden to something else.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy / Access
+//
+// Note: SQLite has no native enum type, so role/status/type columns below
+// are plain String columns. The allowed values are documented next to each
+// field and enforced in application code (see the exported TS union types
+// in packages/database/src/index.ts) rather than at the DB layer.
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  contacts         Contact[]
+  groups           Group[]
+  connectors       Connector[]
+  messages         Message[]
+  templates        Template[]
+  campaigns        Campaign[]
+  workflows        Workflow[]
+  suppressions     Suppression[]
+  auditLogs        AuditLog[]
+  apiKeys          ApiKey[]
+  webhookEndpoints WebhookEndpoint[]
+  excelSources     ExcelSource[]
+  attachments      Attachment[]
+}
+
+/// role: SUPER_ADMIN | TENANT_ADMIN | MANAGER | CAMPAIGN_MANAGER | OPERATOR | AGENT | DEVELOPER | AUDITOR | READ_ONLY
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  email          String
+  name           String?
+  passwordHash   String?
+  role           String   @default("OPERATOR")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  auditLogs      AuditLog[]
+  apiKeys        ApiKey[]
+
+  @@unique([organizationId, email])
+}
+
+model ApiKey {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+  name           String
+  keyHash        String   @unique
+  /// JSON string array of scopes, e.g. ["messages.send","campaigns.create"]
+  scopes         String
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Contacts / Groups / Consent
+// ---------------------------------------------------------------------------
+
+model Contact {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String?
+  phone          String
+  telegramUserId String?
+  email          String?
+  language       String?
+  company        String?
+  externalId     String?
+  source         String?
+  /// JSON string array of tags
+  tags           String     @default("[]")
+  customFields   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  consents           Consent[]
+  campaignRecipients  CampaignRecipient[]
+  messages            Message[]
+  conversations       Conversation[]
+
+  @@unique([organizationId, phone])
+  @@index([organizationId, telegramUserId])
+}
+
+model Group {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  connectorId    String
+  connector      Connector @relation(fields: [connectorId], references: [id])
+  name           String
+  /// For MTProto-discovered groups there is often no stable numeric id known
+  /// up front; Bot API groups/channels use the real chat id here.
+  providerGroupId String?
+  alias          String?
+  verifiedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  messages           Message[]
+  campaignRecipients CampaignRecipient[]
+
+  @@index([organizationId])
+}
+
+/// status: OPTED_IN | OPTED_OUT | UNKNOWN
+model Consent {
+  id             String   @id @default(cuid())
+  contactId      String
+  contact        Contact  @relation(fields: [contactId], references: [id])
+  status         String
+  category       String?
+  source         String?
+  evidenceRef    String?
+  consentedAt    DateTime?
+  optedOutAt     DateTime?
+  createdAt      DateTime @default(now())
+}
+
+model Suppression {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  phone          String
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, phone])
+}
+
+// ---------------------------------------------------------------------------
+// Connectors
+// ---------------------------------------------------------------------------
+
+/// type: TELEGRAM_BOT | TELEGRAM_MTPROTO | CUSTOM_MIDDLEWARE
+model Connector {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  type           String
+  name           String
+  isPrimary      Boolean  @default(false)
+  isEnabled      Boolean  @default(true)
+  capabilities   String
+  credentialRef  String?
+  config         String?
+  healthStatus   String?
+  lastHealthCheckAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  messages       Message[]
+  groups         Group[]
+  webhookEvents  WebhookEvent[]
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Messaging
+// ---------------------------------------------------------------------------
+
+/// approvalStatus: DRAFT | PENDING_APPROVAL | APPROVED | REJECTED
+model Template {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  language       String   @default("en")
+  body           String
+  variables      String?
+  approvalStatus String   @default("DRAFT")
+  providerTemplateId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  campaigns      Campaign[]
+}
+
+model Attachment {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  originalName   String
+  storedName     String
+  mimeType       String
+  sizeBytes      Int
+  hash           String
+  storageLocation String
+  sourceType     String?
+  expiresAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  messageAttachments MessageAttachment[]
+}
+
+/// status: DRAFT | VALIDATED | QUEUED | SENDING | ACCEPTED | SENT | DELIVERED | READ | FAILED | CANCELLED | EXPIRED | UNKNOWN
+/// recipientType: contact | group
+model Message {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  connectorId    String
+  connector      Connector @relation(fields: [connectorId], references: [id])
+  recipientType  String   @default("contact")
+  contactId      String?
+  contact        Contact? @relation(fields: [contactId], references: [id])
+  recipientPhone String?
+  groupId        String?
+  group          Group?   @relation(fields: [groupId], references: [id])
+  campaignId     String?
+  campaign       Campaign? @relation(fields: [campaignId], references: [id])
+  workflowRunId  String?
+  contentType    String
+  body           String?
+  templateVars   String?
+  /// JSON: [{ text, callbackData?, url? }[]][] — inline keyboard rows, Bot API only
+  inlineButtons  String?
+  /// JSON: { question, options: string[], isQuiz?: boolean, correctOptionIndex?: number,
+  /// allowsMultipleAnswers?: boolean } — sent via sendPoll instead of a text body
+  poll           String?
+  /// JSON array of { emoji, userId?, setAt } — reactions applied via setMessageReaction
+  reactions      String?
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  status         String   @default("DRAFT")
+  idempotencyKey String   @unique
+  providerMessageId String?
+  errorCode      String?
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  attachments    MessageAttachment[]
+  statusEvents   MessageStatusEvent[]
+  retryAttempts  RetryAttempt[]
+
+  @@index([organizationId, status])
+}
+
+model MessageAttachment {
+  id           String   @id @default(cuid())
+  messageId    String
+  message      Message  @relation(fields: [messageId], references: [id])
+  attachmentId String
+  attachment   Attachment @relation(fields: [attachmentId], references: [id])
+}
+
+model MessageStatusEvent {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id])
+  status    String
+  raw       String?
+  occurredAt DateTime @default(now())
+}
+
+model RetryAttempt {
+  id          String   @id @default(cuid())
+  messageId   String
+  message     Message  @relation(fields: [messageId], references: [id])
+  attemptNumber Int
+  errorCategory String
+  errorDetail String?
+  attemptedAt DateTime @default(now())
+  nextAttemptAt DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Campaigns
+// ---------------------------------------------------------------------------
+
+/// status: DRAFT | SCHEDULED | WAITING_APPROVAL | RUNNING | PAUSED | COMPLETED | PARTIALLY_FAILED | FAILED | CANCELLED
+model Campaign {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  templateId     String?
+  template       Template? @relation(fields: [templateId], references: [id])
+  status         String   @default("DRAFT")
+  scheduledAt    DateTime?
+  connectorId    String?
+  ratePolicy     String?
+  approvedById   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  recipients     CampaignRecipient[]
+  messages       Message[]
+}
+
+/// Exactly one of contactId/groupId is set per row — enforced in
+/// application code (campaigns.service.ts), not at the DB layer, since
+/// SQLite has no CHECK-constraint-with-OR support via Prisma.
+model CampaignRecipient {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  contactId  String?
+  contact    Contact? @relation(fields: [contactId], references: [id])
+  groupId    String?
+  group      Group?   @relation(fields: [groupId], references: [id])
+  status     String   @default("pending")
+  variables  String?
+}
+
+// ---------------------------------------------------------------------------
+// Workflows
+// ---------------------------------------------------------------------------
+
+model Workflow {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  definition     String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  runs           WorkflowRun[]
+  triggers       Trigger[]
+}
+
+model WorkflowRun {
+  id          String   @id @default(cuid())
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id])
+  status      String   @default("running")
+  context     String?
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+
+  stepRuns    WorkflowStepRun[]
+}
+
+model WorkflowStepRun {
+  id            String   @id @default(cuid())
+  workflowRunId String
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id])
+  nodeId        String
+  status        String
+  input         String?
+  output        String?
+  error         String?
+  startedAt     DateTime @default(now())
+  finishedAt    DateTime?
+}
+
+model Trigger {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id])
+  type       String
+  config     String
+  isActive   Boolean  @default(true)
+}
+
+model Schedule {
+  id         String   @id @default(cuid())
+  workflowId String?
+  cronExpr   String?
+  runAt      DateTime?
+  timezone   String   @default("Asia/Kolkata")
+  isActive   Boolean  @default(true)
+}
+
+// ---------------------------------------------------------------------------
+// Job queue — replaces BullMQ+Redis. Every "enqueue" writes a row here;
+// worker processes poll for due, pending rows. See packages/queue.
+// ---------------------------------------------------------------------------
+
+/// status: pending | processing | completed | failed
+model QueueJob {
+  id          String   @id @default(cuid())
+  queueName   String
+  payload     String
+  status      String   @default("pending")
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5)
+  runAt       DateTime @default(now())
+  lastError   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([queueName, status, runAt])
+}
+
+// ---------------------------------------------------------------------------
+// Webhooks / Conversations
+// ---------------------------------------------------------------------------
+
+/// connectorType: TELEGRAM_BOT | TELEGRAM_MTPROTO | CUSTOM_MIDDLEWARE
+model WebhookEndpoint {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  connectorType  String
+  secret         String
+  url            String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  connectorId String
+  connector   Connector @relation(fields: [connectorId], references: [id])
+  eventType   String
+  payload     String
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Conversation {
+  id         String   @id @default(cuid())
+  contactId  String
+  contact    Contact  @relation(fields: [contactId], references: [id])
+  status     String   @default("open")
+  assignedToId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  messages   ConversationMessage[]
+}
+
+model ConversationMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  direction      String
+  body           String?
+  raw            String?
+  createdAt      DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Excel
+// ---------------------------------------------------------------------------
+
+model ExcelSource {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  mapping        String
+  createdAt      DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+  action         String
+  entityType     String?
+  entityId       String?
+  metadata       String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+}

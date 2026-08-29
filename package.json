@@ -1,0 +1,25 @@
+{
+  "name": "an-telegram-platform",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "start": "turbo run start --filter=@an-tg/api --filter=@an-tg/worker --filter=@an-tg/web",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @an-tg/database run generate",
+    "db:migrate": "pnpm --filter @an-tg/database run migrate",
+    "db:seed": "pnpm --filter @an-tg/database run seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.3",
+    "typescript": "^5.6.3",
+    "prettier": "^3.3.3"
+  }
+}
