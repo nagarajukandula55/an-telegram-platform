@@ -266,6 +266,9 @@ importers:
       '@an-tg/database':
         specifier: workspace:*
         version: link:../database
+      '@an-tg/messaging-core':
+        specifier: workspace:*
+        version: link:../messaging-core
     devDependencies:
       '@types/node':
         specifier: ^20.14.0

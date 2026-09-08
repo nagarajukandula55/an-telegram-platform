@@ -236,6 +236,68 @@ export async function apiCreateGroup(token: string, data: { connectorId: string;
   return handle<GroupDto>(res);
 }
 
+export interface TeamMemberDto {
+  id: string;
+  name: string | null;
+  email: string;
+  role: string;
+}
+
+export async function apiListUsers(token: string) {
+  const res = await fetch(`${API_BASE_URL}/auth/users`, { headers: authHeaders(token), cache: "no-store" });
+  return handle<TeamMemberDto[]>(res);
+}
+
+export interface ConversationDto {
+  id: string;
+  status: string;
+  assignedToId: string | null;
+  assignedTo: { id: string; name: string | null; email: string } | null;
+  lastInboundAt: string | null;
+  updatedAt: string;
+  contact: { id: string; name: string | null; phone: string; telegramUserId: string | null };
+  messages: Array<{ id: string; direction: string; body: string | null; createdAt: string }>;
+}
+
+export async function apiListConversations(token: string, status?: string) {
+  const url = new URL(`${API_BASE_URL}/conversations`);
+  if (status) url.searchParams.set("status", status);
+  const res = await fetch(url, { headers: authHeaders(token), cache: "no-store" });
+  return handle<ConversationDto[]>(res);
+}
+
+export async function apiGetConversation(token: string, id: string) {
+  const res = await fetch(`${API_BASE_URL}/conversations/${id}`, { headers: authHeaders(token), cache: "no-store" });
+  return handle<ConversationDto>(res);
+}
+
+export async function apiAssignConversation(token: string, id: string, userId: string | null) {
+  const res = await fetch(`${API_BASE_URL}/conversations/${id}/assign`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify({ userId }),
+  });
+  return handle<ConversationDto>(res);
+}
+
+export async function apiSetConversationStatus(token: string, id: string, status: string) {
+  const res = await fetch(`${API_BASE_URL}/conversations/${id}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify({ status }),
+  });
+  return handle<ConversationDto>(res);
+}
+
+export async function apiReplyConversation(token: string, id: string, body: string) {
+  const res = await fetch(`${API_BASE_URL}/conversations/${id}/reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify({ body }),
+  });
+  return handle<{ sent: boolean; providerMessageId?: string }>(res);
+}
+
 export interface TemplateDto {
   id: string;
   name: string;

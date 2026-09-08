@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
@@ -49,5 +49,12 @@ export class AuthController {
   @Post("users")
   createUser(@Body() dto: CreateUserDto, @CurrentUser() user: CurrentUserPayload) {
     return this.authService.createUser(user.organizationId, dto);
+  }
+
+  /** Lightweight team roster — used for assigning conversations, not gated to admins since any teammate needs to see who they can assign to. */
+  @UseGuards(JwtAuthGuard)
+  @Get("users")
+  listUsers(@CurrentUser() user: CurrentUserPayload) {
+    return this.authService.listUsers(user.organizationId);
   }
 }

@@ -2,7 +2,13 @@ import { connectorRegistry, decryptSecret, type ConnectorCapabilities } from "@a
 import { TelegramCloudConnector } from "@an-tg/connector-telegram-bot";
 import { CustomHttpConnector } from "@an-tg/connector-custom-http";
 import { TelegramWebConnector } from "@an-tg/connector-telegram-mtproto";
+import { ingestInboundMessage } from "@an-tg/messaging-core";
 import type { PrismaClient } from "@an-tg/database";
+
+/** Shape of the fields this module reads off a grammy `ctx.update` (Telegram's raw Update object) for inbox ingestion. */
+interface TelegramUpdateLike {
+  message?: { text?: string; from?: { id: number; username?: string; first_name?: string; last_name?: string } };
+}
 
 /**
  * Hydrates the process-local connector registry from the Connector table.
@@ -29,6 +35,26 @@ export async function loadConnectorsFromDb(prisma: PrismaClient): Promise<{ load
             // registry for outbound sends only); the worker enables polling
             // so exactly one process owns getUpdates() per bot.
             enablePolling: process.env.AN_TG_PROCESS === "worker",
+            // Phase 8 (Inbox): the worker is the only process actually
+            // polling, so it's the only one that ever sees an incoming
+            // message here — mirrors webhooks.service.ts's ingestion for
+            // deployments using webhook mode instead of long-polling.
+            onIncomingMessage:
+              process.env.AN_TG_PROCESS === "worker"
+                ? async (rawUpdate) => {
+                    const update = rawUpdate as TelegramUpdateLike;
+                    if (!update.message?.from) return;
+                    await ingestInboundMessage(prisma, {
+                      organizationId: row.organizationId,
+                      connectorId: row.id,
+                      telegramUserId: String(update.message.from.id),
+                      username: update.message.from.username,
+                      name: [update.message.from.first_name, update.message.from.last_name].filter(Boolean).join(" ") || undefined,
+                      body: update.message.text,
+                      raw: rawUpdate,
+                    });
+                  }
+                : undefined,
           }),
         );
       } else if (row.type === "CUSTOM_MIDDLEWARE") {

@@ -9,7 +9,8 @@
     "@an-tg/connectors-core": "workspace:*",
     "@an-tg/connector-telegram-bot": "workspace:*",
     "@an-tg/connector-custom-http": "workspace:*",
-    "@an-tg/connector-telegram-mtproto": "workspace:*"
+    "@an-tg/connector-telegram-mtproto": "workspace:*",
+    "@an-tg/messaging-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

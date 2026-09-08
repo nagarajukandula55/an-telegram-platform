@@ -41,6 +41,7 @@ model Organization {
   webhookEndpoints WebhookEndpoint[]
   excelSources     ExcelSource[]
   attachments      Attachment[]
+  conversations    Conversation[]
 }
 
 /// role: SUPER_ADMIN | TENANT_ADMIN | MANAGER | CAMPAIGN_MANAGER | OPERATOR | AGENT | DEVELOPER | AUDITOR | READ_ONLY
@@ -59,6 +60,7 @@ model User {
   auditLogs      AuditLog[]
   apiKeys        ApiKey[]
   refreshTokens  RefreshToken[]
+  assignedConversations Conversation[]
 
   @@unique([organizationId, email])
 }
@@ -212,6 +214,7 @@ model Connector {
   messages       Message[]
   groups         Group[]
   webhookEvents  WebhookEvent[]
+  conversations  Conversation[]
 
   @@index([organizationId])
 }
@@ -473,16 +476,27 @@ model WebhookEvent {
   createdAt   DateTime @default(now())
 }
 
+/// status: open | pending | closed
 model Conversation {
-  id         String   @id @default(cuid())
-  contactId  String
-  contact    Contact  @relation(fields: [contactId], references: [id])
-  status     String   @default("open")
-  assignedToId String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  contactId      String
+  contact        Contact  @relation(fields: [contactId], references: [id])
+  connectorId    String?
+  connector      Connector? @relation(fields: [connectorId], references: [id])
+  status         String   @default("open")
+  assignedToId   String?
+  assignedTo     User?    @relation(fields: [assignedToId], references: [id])
+  /// Last inbound-message timestamp — SLA views sort/filter by how long a conversation has been waiting on a reply.
+  lastInboundAt  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   messages   ConversationMessage[]
+
+  @@index([organizationId, status])
+  @@index([assignedToId])
 }
 
 model ConversationMessage {

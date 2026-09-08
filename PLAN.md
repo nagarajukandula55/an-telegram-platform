@@ -234,8 +234,30 @@ an-telegram-platform/
 
 ## Phase 8 — Inbox
 
-- [ ] Inbound message handling → Conversation model — schema exists, no ingestion path yet
-- [ ] Team inbox UI, assignment, SLA
+- [x] Inbound message handling → Conversation model. `Conversation` gained
+  `organizationId`/`connectorId`/`assignedTo` relations and `lastInboundAt`
+  (for SLA sorting); `packages/messaging-core/src/inbox.ts`'s
+  `ingestInboundMessage()` finds-or-creates the Contact (bot-originated
+  contacts have no phone number, so they get a synthetic `tg:<id>`
+  placeholder — `Contact.phone` is required+unique) and the open
+  Conversation, then appends a `ConversationMessage`. Wired into both
+  ingestion paths that previously dropped every inbound message on the
+  floor: `webhooks.service.ts` (webhook mode) and
+  `connectors-bootstrap`'s `onIncomingMessage` callback (long-polling
+  mode, the default — `TelegramCloudConnector`'s `onIncomingMessage`
+  config option existed but nothing ever passed one in).
+- [x] Team inbox UI (`/dashboard/inbox`): open/pending/closed tabs, a
+  conversation list sorted oldest-inbound-first (SLA: age badge turns red
+  past 30 minutes waiting), thread view, assign-to-teammate dropdown
+  (`GET /auth/users`, new — no team roster endpoint existed before this),
+  status transitions, and reply. `ConversationsService.reply()` sends
+  directly through the conversation's connector by `telegramUserId`
+  rather than through `packages/messaging-core`'s phone-based send
+  pipeline, since these contacts often have no real phone number.
+  Verified end-to-end against a running api instance: posted a synthetic
+  Telegram webhook update → contact+conversation+message created →
+  assign → status change → reply, plus confirmed a redelivered
+  `update_id` is deduplicated rather than creating a second message.
 
 ## Phase 9 — Optional AI
 

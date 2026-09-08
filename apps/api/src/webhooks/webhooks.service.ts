@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { Injectable, Logger } from "@nestjs/common";
+import { ingestInboundMessage } from "@an-tg/messaging-core";
 import { PrismaService } from "../common/prisma.service";
 
 /**
@@ -9,7 +10,7 @@ import { PrismaService } from "../common/prisma.service";
  */
 interface TelegramUpdate {
   update_id: number;
-  message?: { message_id: number; text?: string };
+  message?: { message_id: number; text?: string; from?: { id: number; username?: string; first_name?: string; last_name?: string } };
   callback_query?: { id: string; data?: string };
   poll_answer?: { poll_id: string };
 }
@@ -54,6 +55,25 @@ export class WebhooksService {
     await this.prisma.client.webhookEvent.create({
       data: { connectorId, eventType: eventId, payload: JSON.stringify(update), processedAt: new Date() },
     });
+
+    // Phase 8 (Inbox): a real inbound text message becomes a Contact +
+    // Conversation + ConversationMessage — callback_query/poll_answer
+    // updates aren't conversational content, so they're logged above
+    // (WebhookEvent) but not turned into an inbox message.
+    if (update.message?.from) {
+      const connector = await this.prisma.client.connector.findUnique({ where: { id: connectorId } });
+      if (connector) {
+        await ingestInboundMessage(this.prisma.client, {
+          organizationId: connector.organizationId,
+          connectorId,
+          telegramUserId: String(update.message.from.id),
+          username: update.message.from.username,
+          name: [update.message.from.first_name, update.message.from.last_name].filter(Boolean).join(" ") || undefined,
+          body: update.message.text,
+          raw: update,
+        });
+      }
+    }
 
     return {
       kind: update.message ? "message" : update.callback_query ? "callback_query" : update.poll_answer ? "poll_answer" : "other",

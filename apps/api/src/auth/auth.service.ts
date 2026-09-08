@@ -72,6 +72,14 @@ export class AuthService {
     });
   }
 
+  listUsers(organizationId: string) {
+    return this.prisma.client.user.findMany({
+      where: { organizationId, isActive: true },
+      select: { id: true, name: true, email: true, role: true },
+      orderBy: { name: "asc" },
+    });
+  }
+
   /**
    * Exchanges a still-valid, unrevoked refresh token for a new access token
    * and a new refresh token — the old refresh token row is revoked in the
