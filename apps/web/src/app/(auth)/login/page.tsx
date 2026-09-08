@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiLogin } from "@/lib/api";
+import { storeSession } from "@/lib/useAuth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,8 +17,8 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const { accessToken } = await apiLogin(email, password);
-      window.localStorage.setItem("an_wa_token", accessToken);
+      const result = await apiLogin(email, password);
+      storeSession(result);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");

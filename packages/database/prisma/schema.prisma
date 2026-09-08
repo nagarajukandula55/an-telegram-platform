@@ -58,8 +58,27 @@ model User {
 
   auditLogs      AuditLog[]
   apiKeys        ApiKey[]
+  refreshTokens  RefreshToken[]
 
   @@unique([organizationId, email])
+}
+
+/// Opaque refresh tokens (spec: server-side session revocation). Only a
+/// SHA-256 hash of the token is stored — the raw value exists only in the
+/// client's hands and this one response. Rotated on every use: refresh()
+/// revokes the presented row and issues a new one, so a stolen-and-replayed
+/// old token is detectable (its row is already revoked) even though this
+/// build doesn't yet act on that signal beyond rejecting the reuse.
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 model ApiKey {

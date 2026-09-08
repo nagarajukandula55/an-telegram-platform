@@ -1,9 +1,16 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
+import { randomBytes, createHash } from "node:crypto";
 import { PrismaService } from "../common/prisma.service";
 import { RegisterDto } from "./dto/register.dto";
 import { CreateUserDto } from "./dto/create-user.dto";
+
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 @Injectable()
 export class AuthService {
@@ -22,7 +29,7 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
-    return this.issueToken(user.id, user.organizationId, user.role, user.email, user.name);
+    return this.issueSession(user.id, user.organizationId, user.role, user.email, user.name);
   }
 
   /**
@@ -48,7 +55,7 @@ export class AuthService {
       data: { organizationId: org.id, email: dto.email, name: dto.name, passwordHash, role: "TENANT_ADMIN" },
     });
 
-    return this.issueToken(user.id, user.organizationId, user.role, user.email, user.name);
+    return this.issueSession(user.id, user.organizationId, user.role, user.email, user.name);
   }
 
   async createUser(organizationId: string, dto: CreateUserDto) {
@@ -65,8 +72,55 @@ export class AuthService {
     });
   }
 
-  private async issueToken(userId: string, organizationId: string, role: string, email: string, name: string | null) {
+  /**
+   * Exchanges a still-valid, unrevoked refresh token for a new access token
+   * and a new refresh token — the old refresh token row is revoked in the
+   * same call (rotation), so each refresh token is single-use.
+   */
+  async refresh(refreshToken: string) {
+    const tokenHash = hashToken(refreshToken);
+    const row = await this.prisma.client.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+    if (!row || row.revokedAt || row.expiresAt < new Date() || !row.user.isActive) {
+      throw new UnauthorizedException("Invalid or expired refresh token");
+    }
+
+    await this.prisma.client.refreshToken.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
+
+    return this.issueSession(row.user.id, row.user.organizationId, row.user.role, row.user.email, row.user.name);
+  }
+
+  /** Revokes one refresh token (the one presented at logout) — server-side session end, not just client-side token deletion. */
+  async logout(refreshToken: string): Promise<void> {
+    const tokenHash = hashToken(refreshToken);
+    await this.prisma.client.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  /** Revokes every refresh token for a user — "log out everywhere". */
+  async revokeAllSessions(userId: string): Promise<void> {
+    await this.prisma.client.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  private async issueSession(userId: string, organizationId: string, role: string, email: string, name: string | null) {
     const accessToken = await this.jwt.signAsync({ sub: userId, organizationId, role, email });
-    return { accessToken, user: { id: userId, email, name, role, organizationId } };
+
+    const refreshToken = randomBytes(32).toString("hex");
+    await this.prisma.client.refreshToken.create({
+      data: {
+        userId,
+        tokenHash: hashToken(refreshToken),
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      },
+    });
+
+    return { accessToken, refreshToken, user: { id: userId, email, name, role, organizationId } };
   }
 }

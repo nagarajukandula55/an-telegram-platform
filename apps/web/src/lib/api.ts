@@ -14,6 +14,7 @@ async function handle<T>(res: Response): Promise<T> {
 
 export interface LoginResult {
   accessToken: string;
+  refreshToken: string;
   user: { id: string; email: string; role: string; organizationId: string };
 }
 
@@ -42,6 +43,27 @@ export async function apiLogin(email: string, password: string) {
     body: JSON.stringify({ email, password }),
   });
   return handle<LoginResult>(res);
+}
+
+/** The access token is short-lived (15m) — the frontend calls this to get a fresh one without re-prompting for a password. */
+export async function apiRefresh(refreshToken: string) {
+  const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  });
+  return handle<LoginResult>(res);
+}
+
+/** Revokes the refresh token server-side — real session end, not just clearing it client-side. */
+export async function apiLogout(refreshToken: string) {
+  await fetch(`${API_BASE_URL}/auth/logout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  }).catch(() => {
+    // Best-effort — the client still clears its local session either way.
+  });
 }
 
 export async function apiListContacts(token: string, search?: string) {

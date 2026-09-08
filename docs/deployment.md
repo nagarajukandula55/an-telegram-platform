@@ -50,11 +50,9 @@ calls.
 - Per-organization webhook secrets, if you'll ever have more than one
   Telegram Bot API connector across different orgs (today it's one global
   env var pair per deployment).
-- Rate/volume limiting — nothing throttles campaign or workflow send
-  rate today beyond queue concurrency.
-- An automated test suite and CI — everything verified so far has been
-  manual build/typecheck/live-run checks in this session, not an
-  automated pipeline.
+- A broader automated test suite — `packages/messaging-core` has unit
+  tests and CI runs them on every push, but most of `apps/api`/
+  `apps/worker` is still only manually verified.
 
 See `PLAN.md` for the full, currently-accurate list of what's built vs.
 open.

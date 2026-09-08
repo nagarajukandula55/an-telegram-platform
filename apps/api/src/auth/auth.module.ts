@@ -11,7 +11,9 @@ import { PrismaService } from "../common/prisma.service";
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET ?? "change-me-in-every-environment",
-      signOptions: { expiresIn: "8h" },
+      // Short-lived on purpose — the refresh token (packages/database's
+      // RefreshToken, revocable server-side) is what carries a real session.
+      signOptions: { expiresIn: "15m" },
     }),
   ],
   providers: [AuthService, JwtStrategy, PrismaService],

@@ -108,10 +108,14 @@ an-telegram-platform/
       registry so no restart is needed
 - [x] `/dashboard` navigation shell (Contacts/Connectors/Compose/Campaigns/Workflows)
       plus a `/signup` page that chains org-create → register → redirect to dashboard
-- [ ] Still open: no refresh tokens / logout-side revocation (logout is
-      client-side token deletion only); no per-connector webhook secrets
-      (see Phase 4 note); `pnpm db:migrate` still not run against a live
-      DB in this environment
+- [x] Refresh tokens / server-side session revocation: access tokens are
+      now short-lived (15m); `RefreshToken` rows (SHA-256-hashed, 30d
+      expiry) back `POST /auth/refresh` (rotates on use — old token
+      revoked, new one issued), `POST /auth/logout` (revokes the
+      presented token), and `POST /auth/logout-all` (revokes every
+      session for the caller). The web app refreshes silently in the
+      background (`useAuthToken` in `apps/web/src/lib/useAuth.ts`).
+- [ ] Still open: no per-connector webhook secrets (see Phase 4 note)
 
 ## Phase 2 — Telegram MTProto desktop agent (done this session, partially)
 
@@ -283,22 +287,23 @@ similar issues extending this):
 
 ## What's still open
 
-- No automated test suite anywhere yet (unit or integration) — the
-  end-to-end pass above was manual (curl + log inspection), not a
-  repeatable test suite.
-- No CI pipeline (lint/typecheck/test on push).
+- Automated test suite is minimal — `packages/messaging-core` has unit
+  tests (consent/retry/rate-limit) but most of `apps/api`/`apps/worker`
+  is still only exercised by manual curl + log inspection.
+- CI pipeline now runs install/typecheck/test/build on every push/PR
+  (`.github/workflows/ci.yml`), but doesn't run lint (no package defines
+  a `lint` script yet) or any integration/e2e suite.
 - Web UI is functional but intentionally minimal: campaigns/workflows use
   plain forms and a raw JSON node editor rather than the wizard/visual
   builder described in spec §55/§13 — good enough to exercise every API
   path for testing, not a finished design.
-- Per-organization Cloud API webhook secrets (see Phase 4 note above) —
-  currently one global env var per secret, fine for a single Cloud API
-  connector per deployment.
-- Rate/safety controls (spec §28: per-minute/hour/day limits) are not
-  enforced anywhere yet — campaigns and workflows can currently fire as
-  fast as the queue concurrency allows.
-- No refresh tokens / server-side session revocation — JWT expires after
-  8h and logout is client-side token deletion only.
+- Per-organization Telegram Bot API webhook secrets (see Phase 4 note
+  above) — currently one global env var per secret, fine for a single
+  Bot API connector per deployment.
+- No refresh-token reuse detection beyond rejecting an already-revoked
+  token — a stolen-and-replayed refresh token isn't distinguished from
+  an expired one, and there's no "reuse detected, revoke the whole
+  chain" response yet.
 
 ---
 

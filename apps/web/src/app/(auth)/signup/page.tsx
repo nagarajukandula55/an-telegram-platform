@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiCreateOrganization, apiRegister } from "@/lib/api";
+import { storeSession } from "@/lib/useAuth";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -20,8 +21,8 @@ export default function SignupPage() {
     setError(null);
     try {
       const org = await apiCreateOrganization(orgName, orgSlug);
-      const { accessToken } = await apiRegister(org.id, email, password, name || undefined);
-      window.localStorage.setItem("an_wa_token", accessToken);
+      const result = await apiRegister(org.id, email, password, name || undefined);
+      storeSession(result);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
