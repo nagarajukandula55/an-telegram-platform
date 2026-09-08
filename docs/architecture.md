@@ -11,13 +11,13 @@ implementations of one `Connector` interface
 Workflows never branch on which connector type is in use — they call
 `connector.send(message)` and let the adapter handle the specifics.
 
-## Four processes, one database
+## Three processes, one database
 
 ```
 ┌─────────┐      HTTP       ┌─────────┐
-│   web   │ ───────────────▶│   api   │
-│ :3000   │                 │ :4000   │
-└─────────┘                 └────┬────┘
+│   web   │ ───────────────▶│   api   │──▶ real Telegram MTProto session
+│ :3000   │                 │ :4000   │    (GramJS, in-process TCP/TLS,
+└─────────┘                 └────┬────┘     no browser, no QR-code automation)
                                   │ writes rows to
                                   ▼
                           ┌──────────────┐
@@ -26,19 +26,14 @@ Workflows never branch on which connector type is in use — they call
                                   ▲            │
                                   │            │
                           ┌───────┴──────┐     │
-                          │    worker    │─────┘
-                          └───────┬──────┘
-                                  │ HTTP (only for Telegram MTProto sends)
-                                  ▼
-                          ┌──────────────┐
-                          │desktop-agent │──▶ real Telegram MTProto session
-                          │  :8787       │    (Chromium, QR login)
+                          │    worker    │─────┘──▶ same in-process GramJS client
                           └──────────────┘
 ```
 
 - **web** never touches the database directly — everything goes through the api over HTTP.
 - **api** and **worker** are peers, not client/server — both read/write the same SQLite file directly via Prisma, and both independently load the connector registry at startup (`packages/connectors-bootstrap`). The api handles synchronous sends (Compose) and enqueues async work (campaign launch, workflow trigger); the worker is what actually processes that queued work.
-- **desktop-agent** is the only process either of the others talks to over HTTP rather than a shared library call — because it owns a real browser session that has to be a single long-lived process.
+- Telegram MTProto (`connectors/connector-telegram-mtproto`, via GramJS) is a plain outbound TCP/TLS client that runs in-process inside whichever of api/worker calls it — unlike the sibling `an-whatsapp-platform` project, there's no separate browser-automation service or Chromium bundle to run as its own process. Login is a one-time interactive phone/code/2FA flow (`connector-telegram-mtproto/src/login.ts`), never automated — see the non-negotiables in `PLAN.md`.
+- `apps/desktop` is a separate concern: an Electron shell that packages api+worker+web into one Windows installer for end users. It doesn't change the process model above — it just spawns the same three processes as local children instead of running them via `pnpm dev`.
 
 ## The queue, without Redis
 

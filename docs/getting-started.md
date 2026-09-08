@@ -39,14 +39,10 @@ pnpm start        # runs the built api + worker + web together
 
 ## If you need Telegram MTProto (groups, or your own number)
 
-That's a fourth process, run separately, because it opens a real browser
-window for you to scan a QR code with:
-
-```bash
-pnpm --filter @an-tg/desktop-agent dev
-```
-
-See `apps/desktop-agent/README.md` and `docs/connectors.md` for the full
+No extra process to run — MTProto (via GramJS) is an in-process TCP
+client inside `api`/`worker`. Just create a **Telegram MTProto** connector
+from `/dashboard/connectors` and complete the one-time interactive
+phone/code/2FA login in the UI. See `docs/connectors.md` for the full
 setup.
 
 ## What each command actually starts
@@ -55,13 +51,13 @@ setup.
 |---|---|
 | `pnpm dev` | api (`:4000`) + web (`:3000`) + worker, dev mode, auto-reload |
 | `pnpm start` | Same three, running the production build |
-| `pnpm --filter @an-tg/desktop-agent dev` | The Telegram MTProto bridge, separately — opt-in |
+| `pnpm --filter @an-tg/desktop dist:win` | Builds the Windows installer that packages all three into one app (see `apps/desktop/README.md`) |
 | `pnpm db:migrate` | Applies Prisma migrations to the local SQLite file |
 | `pnpm db:seed` | Creates the demo org/user/connector |
 
 ## Next steps
 
 - `docs/connectors.md` — set up your first real delivery method
-- `docs/architecture.md` — how the four processes and the queue fit together
+- `docs/architecture.md` — how the three processes and the queue fit together
 - `docs/deployment.md` — what changes if you want this running on a server instead of your machine
 - `PLAN.md` — what's built vs. still open, phase by phase

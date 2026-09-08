@@ -1,5 +1,15 @@
 # AN Telegram Automation Platform — Build Plan
 
+> **Architecture note (current):** the `apps/desktop-agent` Playwright/
+> Chromium bridge described in the early phases below was later replaced
+> with GramJS — Telegram MTProto now runs as a plain in-process TCP/TLS
+> client inside `apps/api`/`apps/worker`, no browser and no separate agent
+> process. `apps/desktop-agent` no longer exists in the repo. A new
+> `apps/desktop` (Electron) was added instead, which just packages
+> api+worker+web into one Windows installer. See `docs/architecture.md`
+> and `apps/desktop/README.md` for the current design; the phases below
+> are kept as a historical build log and are not all still accurate.
+
 Source spec: `AN_Telegram_Automation_Platform_Project_Document.md` (kept in this
 repo's root for reference). This is a full production system, not a
 throwaway MVP — phases below are build order, not scope cuts.

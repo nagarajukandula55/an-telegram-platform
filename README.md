@@ -33,7 +33,7 @@ This repo has three layers of docs, each answering a different question:
 |---|---|---|
 | **Setup guides** | `docs/` — [getting-started](docs/getting-started.md), [connectors](docs/connectors.md), [groups & Telegram MTProto](docs/groups-and-connector-telegram-mtproto.md), [architecture](docs/architecture.md), [deployment](docs/deployment.md) | "How do I install/configure this?" — read before or while running it |
 | **In-app guide** | `/dashboard/help` in the running app | "How do I use this screen?" — read while using it |
-| **Per-app READMEs** | [`apps/api`](apps/api/README.md), [`apps/worker`](apps/worker/README.md), [`apps/web`](apps/web/README.md), [`apps/desktop-agent`](apps/desktop-agent/README.md), [`packages`](packages/README.md) | "What does this specific process/package do and how do I run it standalone?" — read when working on the code |
+| **Per-app READMEs** | [`apps/api`](apps/api/README.md), [`apps/worker`](apps/worker/README.md), [`apps/web`](apps/web/README.md), [`apps/desktop`](apps/desktop/README.md), [`packages`](packages/README.md) | "What does this specific process/package do and how do I run it standalone?" — read when working on the code |
 
 `PLAN.md` is a fourth, different kind of doc: not a guide, but a running
 account of what's built vs. still open, phase by phase.
@@ -43,7 +43,7 @@ account of what's built vs. still open, phase by phase.
 - `apps/web` — Next.js frontend: login/signup, contacts, connectors, compose, campaigns, workflows, in-app help
 - `apps/api` — NestJS backend: auth, organizations, contacts, groups, connectors, messages, attachments, campaigns, workflows, webhooks
 - `apps/worker` — polls the `QueueJob` table for send/campaign/workflow jobs + a schedule poller (no broker)
-- `apps/desktop-agent` — local Playwright bridge for Telegram MTProto sessions (manual QR login only)
+- `apps/desktop` — Electron installer that packages api/worker/web into one Windows app for end users (see `apps/desktop/README.md`)
 - `packages/database` — Prisma schema (SQLite) + client
 - `packages/connectors-core` — shared `Connector` interface + registry
 - `packages/connectors-bootstrap` — hydrates the registry from the `Connector` table (used by both api and worker)

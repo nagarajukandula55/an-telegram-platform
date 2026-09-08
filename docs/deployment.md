@@ -20,8 +20,9 @@ than your own machine.
 - **Attachments** live on local disk (`ATTACHMENT_STORAGE_DIR`). A second
   instance wouldn't see files the first one saved unless they share a
   volume.
-- **The desktop-agent's browser session** is inherently single-machine —
-  it's a real, stateful browser profile.
+- **The MTProto session** (GramJS, in-process inside api/worker) is a
+  live TCP connection tied to whichever process holds it — not something
+  a load balancer can share across instances without extra work.
 
 None of this matters until you actually need >1 instance or a server
 that isn't the one you're developing on.
@@ -47,8 +48,8 @@ calls.
 ## Also needed before "production" regardless of hosting
 
 - Per-organization webhook secrets, if you'll ever have more than one
-  Cloud API connector across different orgs (today it's one global env
-  var pair per deployment).
+  Telegram Bot API connector across different orgs (today it's one global
+  env var pair per deployment).
 - Rate/volume limiting — nothing throttles campaign or workflow send
   rate today beyond queue concurrency.
 - An automated test suite and CI — everything verified so far has been
