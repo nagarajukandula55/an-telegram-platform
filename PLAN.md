@@ -327,8 +327,12 @@ similar issues extending this):
   per-recipient CSV (recipient/phone/status/providerMessageId/error/
   sentAt); "Export CSV" on the campaigns page triggers the download. XLSX/
   PDF export are still not implemented, only CSV.
-- Campaigns page is still a plain form (connector + template + recipient
-  checkboxes), not a guided audience/schedule/preview wizard.
+- [x] Campaigns page is now a 3-step guided wizard (Audience → Message →
+  Review & launch) — `apps/web/src/app/dashboard/campaigns/CampaignWizard.tsx`.
+  Step 2 shows a live client-side preview of the selected template
+  rendered against the first selected contact (or a placeholder sample),
+  mirroring `packages/messaging-core`'s `renderTemplate()`. Still no
+  scheduling step (campaigns launch immediately, no "send later").
 - [x] Refresh-token reuse detection: `RefreshToken` rows now carry a
   `familyId` (rotation chain). Presenting an already-revoked-but-
   unexpired token — only possible if it leaked and got used twice —
