@@ -10,9 +10,13 @@ import {
   apiListConnectors,
   apiListContacts,
   apiListGroups,
+  apiListTemplates,
+  apiCreateTemplate,
+  downloadCampaignReportCsv,
   CampaignDto,
   ConnectorDto,
   GroupDto,
+  TemplateDto,
 } from "@/lib/api";
 
 export default function CampaignsPage() {
@@ -21,13 +25,18 @@ export default function CampaignsPage() {
   const [connectors, setConnectors] = useState<ConnectorDto[]>([]);
   const [contacts, setContacts] = useState<Array<{ id: string; name: string | null; phone: string }>>([]);
   const [groups, setGroups] = useState<GroupDto[]>([]);
+  const [templates, setTemplates] = useState<TemplateDto[]>([]);
   const [name, setName] = useState("");
   const [connectorId, setConnectorId] = useState("");
+  const [templateId, setTemplateId] = useState("");
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [reportFor, setReportFor] = useState<string | null>(null);
   const [report, setReport] = useState<Record<string, unknown> | null>(null);
+  const [showNewTemplate, setShowNewTemplate] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [newTemplateBody, setNewTemplateBody] = useState("");
 
   const refresh = useCallback(() => {
     if (!token) return;
@@ -43,7 +52,13 @@ export default function CampaignsPage() {
     });
     apiListContacts(token).then(setContacts);
     apiListGroups(token).then(setGroups);
+    refreshTemplates();
   }, [token]);
+
+  function refreshTemplates() {
+    if (!token) return;
+    apiListTemplates(token).then(setTemplates).catch(() => {});
+  }
 
   const selectedConnector = connectors.find((c) => c.id === connectorId);
   const supportsGroups = selectedConnector?.capabilities.groups ?? false;
@@ -56,6 +71,7 @@ export default function CampaignsPage() {
       await apiCreateCampaign(token, {
         name,
         connectorId,
+        templateId: templateId || undefined,
         recipientContactIds: selectedContactIds.length ? selectedContactIds : undefined,
         recipientGroupIds: selectedGroupIds.length ? selectedGroupIds : undefined,
       });
@@ -84,6 +100,32 @@ export default function CampaignsPage() {
     setReportFor(id);
     const r = await apiCampaignReport(token, id);
     setReport(r);
+  }
+
+  async function handleExportCsv(id: string, name: string) {
+    if (!token) return;
+    setError(null);
+    try {
+      await downloadCampaignReportCsv(token, id, `${name.replace(/[^\w-]+/g, "_")}-report.csv`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to export report");
+    }
+  }
+
+  async function handleCreateTemplate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    setError(null);
+    try {
+      const created = await apiCreateTemplate(token, { name: newTemplateName, body: newTemplateBody });
+      setNewTemplateName("");
+      setNewTemplateBody("");
+      setShowNewTemplate(false);
+      refreshTemplates();
+      setTemplateId(created.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create template");
+    }
   }
 
   function toggleContact(id: string) {
@@ -127,6 +169,47 @@ export default function CampaignsPage() {
             {contacts.length === 0 && <p className="text-gray-400">No contacts — add some on the Contacts page first.</p>}
           </div>
         </div>
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">Message template</label>
+          <div className="flex gap-2">
+            <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm">
+              <option value="">No template (empty body)</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <button type="button" onClick={() => setShowNewTemplate((v) => !v)} className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50">
+              {showNewTemplate ? "Cancel" : "+ New template"}
+            </button>
+          </div>
+          {showNewTemplate && (
+            <div className="mt-2 space-y-2 rounded border border-gray-200 p-2">
+              <input
+                value={newTemplateName}
+                onChange={(e) => setNewTemplateName(e.target.value)}
+                placeholder="Template name"
+                className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+              <textarea
+                value={newTemplateBody}
+                onChange={(e) => setNewTemplateBody(e.target.value)}
+                placeholder="Message body — use {{contact.name}}, {{contact.company}}, {{variables.x}} to personalize per recipient"
+                rows={3}
+                className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleCreateTemplate}
+                disabled={!newTemplateName || !newTemplateBody}
+                className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                Save template
+              </button>
+            </div>
+          )}
+        </div>
         {supportsGroups && (
           <div>
             <label className="mb-1 block text-xs text-gray-500">Groups ({selectedGroupIds.length} selected)</label>
@@ -169,6 +252,9 @@ export default function CampaignsPage() {
                   </button>
                   <button onClick={() => handleReport(c.id)} className="text-gray-500 hover:underline">
                     Report
+                  </button>
+                  <button onClick={() => handleExportCsv(c.id, c.name)} className="text-gray-500 hover:underline">
+                    Export CSV
                   </button>
                 </td>
               </tr>

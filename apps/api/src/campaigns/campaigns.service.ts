@@ -80,4 +80,30 @@ export class CampaignsService {
 
     return { campaignId: campaign.id, name: campaign.name, status: campaign.status, totalMessages: campaign.messages.length, byStatus };
   }
+
+  /** Per-recipient status rows for CSV export — the summary report() only has status counts, not who got what. */
+  async reportRows(organizationId: string, campaignId: string) {
+    const campaign = await this.prisma.client.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        messages: {
+          include: { contact: true, group: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+    if (!campaign || campaign.organizationId !== organizationId) {
+      throw new NotFoundException("Campaign not found");
+    }
+
+    return campaign.messages.map((m) => ({
+      recipient: m.group ? (m.group.alias ?? m.group.name) : (m.contact?.name ?? m.recipientPhone ?? ""),
+      phone: m.recipientPhone ?? "",
+      status: m.status,
+      providerMessageId: m.providerMessageId ?? "",
+      errorCode: m.errorCode ?? "",
+      errorMessage: m.errorMessage ?? "",
+      sentAt: m.createdAt.toISOString(),
+    }));
+  }
 }

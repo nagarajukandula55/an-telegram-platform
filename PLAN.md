@@ -318,14 +318,20 @@ similar issues extending this):
   per-recipient before sending (`packages/messaging-core/src/template.ts`,
   wired into `campaign.processor.ts`) — previously sent the raw
   unrendered body to everyone.
+- [x] Templates now have a real backend (`apps/api/src/templates`) and a
+  create/select UI on the campaigns page — previously `Campaign.templateId`
+  was accepted by the create API but nothing could ever create a Template
+  row, so every campaign silently sent an empty body.
+- [x] Campaign report export: `GET /campaigns/:id/report.csv` streams a
+  per-recipient CSV (recipient/phone/status/providerMessageId/error/
+  sentAt); "Export CSV" on the campaigns page triggers the download. XLSX/
+  PDF export are still not implemented, only CSV.
+- Campaigns page is still a plain form (connector + template + recipient
+  checkboxes), not a guided audience/schedule/preview wizard.
 - No refresh-token reuse detection beyond rejecting an already-revoked
   token — a stolen-and-replayed refresh token isn't distinguished from
   an expired one, and there's no "reuse detected, revoke the whole
   chain" response yet.
-- Campaigns page is still a plain form (connector + template + recipient
-  list), not a guided audience/schedule/preview wizard.
-- No campaign report export (XLSX/CSV/PDF) — only the JSON status per
-  recipient via the runs view.
 
 ---
 

@@ -236,6 +236,47 @@ export async function apiCreateGroup(token: string, data: { connectorId: string;
   return handle<GroupDto>(res);
 }
 
+export interface TemplateDto {
+  id: string;
+  name: string;
+  body: string;
+  language: string;
+  approvalStatus: string;
+  createdAt: string;
+}
+
+export async function apiListTemplates(token: string) {
+  const res = await fetch(`${API_BASE_URL}/templates`, { headers: authHeaders(token), cache: "no-store" });
+  return handle<TemplateDto[]>(res);
+}
+
+export async function apiCreateTemplate(token: string, data: { name: string; body: string; language?: string }) {
+  const res = await fetch(`${API_BASE_URL}/templates`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify(data),
+  });
+  return handle<TemplateDto>(res);
+}
+
+/**
+ * Fetches the per-recipient CSV report (with the auth header a plain `<a
+ * href>` can't send) and triggers a browser download of it.
+ */
+export async function downloadCampaignReportCsv(token: string, id: string, filename: string) {
+  const res = await fetch(`${API_BASE_URL}/campaigns/${id}/report.csv`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error(`Failed to fetch report (HTTP ${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export interface CampaignDto {
   id: string;
   name: string;

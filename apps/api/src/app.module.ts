@@ -7,6 +7,7 @@ import { MessagesModule } from "./messages/messages.module";
 import { ConnectorsModule } from "./connectors/connectors.module";
 import { AttachmentsModule } from "./attachments/attachments.module";
 import { CampaignsModule } from "./campaigns/campaigns.module";
+import { TemplatesModule } from "./templates/templates.module";
 import { WorkflowsModule } from "./workflows/workflows.module";
 import { WebhooksModule } from "./webhooks/webhooks.module";
 
@@ -20,6 +21,7 @@ import { WebhooksModule } from "./webhooks/webhooks.module";
     MessagesModule,
     AttachmentsModule,
     CampaignsModule,
+    TemplatesModule,
     WorkflowsModule,
     WebhooksModule,
   ],

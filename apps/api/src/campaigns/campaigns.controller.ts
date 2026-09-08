@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import { CampaignsService } from "./campaigns.service";
 import { CreateCampaignDto } from "./dto/create-campaign.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
@@ -35,5 +36,17 @@ export class CampaignsController {
   @Get(":id/report")
   report(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.campaigns.report(user.organizationId, id);
+  }
+
+  @Get(":id/report.csv")
+  async reportCsv(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload, @Res() res: Response) {
+    const rows = await this.campaigns.reportRows(user.organizationId, id);
+    const header = ["recipient", "phone", "status", "providerMessageId", "errorCode", "errorMessage", "sentAt"];
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const csv = [header.join(","), ...rows.map((r) => header.map((h) => escape(String(r[h as keyof typeof r]))).join(","))].join("\n");
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="campaign-${id}-report.csv"`);
+    res.send(csv);
   }
 }
