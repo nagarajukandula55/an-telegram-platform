@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { PrismaService } from "../common/prisma.service";
 import { RegisterDto } from "./dto/register.dto";
 import { CreateUserDto } from "./dto/create-user.dto";
@@ -75,7 +75,15 @@ export class AuthService {
   /**
    * Exchanges a still-valid, unrevoked refresh token for a new access token
    * and a new refresh token — the old refresh token row is revoked in the
-   * same call (rotation), so each refresh token is single-use.
+   * same call (rotation, same familyId chain), so each refresh token is
+   * single-use.
+   *
+   * If the presented token is already revoked but not expired, that's
+   * reuse: a token that was already rotated away is being presented again,
+   * which only happens if it leaked and both the thief and the legitimate
+   * holder tried to use it. Revoking the whole family forces a real
+   * re-login, which is the only way to actually recover from a leaked
+   * refresh token rather than just detecting it.
    */
   async refresh(refreshToken: string) {
     const tokenHash = hashToken(refreshToken);
@@ -83,13 +91,27 @@ export class AuthService {
       where: { tokenHash },
       include: { user: true },
     });
-    if (!row || row.revokedAt || row.expiresAt < new Date() || !row.user.isActive) {
+    if (!row) {
+      throw new UnauthorizedException("Invalid or expired refresh token");
+    }
+
+    if (row.revokedAt) {
+      if (row.expiresAt >= new Date()) {
+        await this.prisma.client.refreshToken.updateMany({
+          where: { familyId: row.familyId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      throw new UnauthorizedException("Invalid or expired refresh token");
+    }
+
+    if (row.expiresAt < new Date() || !row.user.isActive) {
       throw new UnauthorizedException("Invalid or expired refresh token");
     }
 
     await this.prisma.client.refreshToken.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
 
-    return this.issueSession(row.user.id, row.user.organizationId, row.user.role, row.user.email, row.user.name);
+    return this.issueSession(row.user.id, row.user.organizationId, row.user.role, row.user.email, row.user.name, row.familyId);
   }
 
   /** Revokes one refresh token (the one presented at logout) — server-side session end, not just client-side token deletion. */
@@ -109,14 +131,18 @@ export class AuthService {
     });
   }
 
-  private async issueSession(userId: string, organizationId: string, role: string, email: string, name: string | null) {
+  /** `familyId` is omitted for a fresh login (starts a new chain, keyed by this token's own id) and passed through on refresh() (continues the existing chain). */
+  private async issueSession(userId: string, organizationId: string, role: string, email: string, name: string | null, familyId?: string) {
     const accessToken = await this.jwt.signAsync({ sub: userId, organizationId, role, email });
 
     const refreshToken = randomBytes(32).toString("hex");
+    const id = randomUUID();
     await this.prisma.client.refreshToken.create({
       data: {
+        id,
         userId,
         tokenHash: hashToken(refreshToken),
+        familyId: familyId ?? id,
         expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
       },
     });

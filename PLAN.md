@@ -328,10 +328,14 @@ similar issues extending this):
   PDF export are still not implemented, only CSV.
 - Campaigns page is still a plain form (connector + template + recipient
   checkboxes), not a guided audience/schedule/preview wizard.
-- No refresh-token reuse detection beyond rejecting an already-revoked
-  token — a stolen-and-replayed refresh token isn't distinguished from
-  an expired one, and there's no "reuse detected, revoke the whole
-  chain" response yet.
+- [x] Refresh-token reuse detection: `RefreshToken` rows now carry a
+  `familyId` (rotation chain). Presenting an already-revoked-but-
+  unexpired token — only possible if it leaked and got used twice —
+  revokes every token in that family, not just the one presented, forcing
+  a real re-login instead of only rejecting the one replay attempt.
+  Verified end-to-end against a running api instance: login → refresh →
+  replay the original (now-rotated-away) token → 401, and the
+  legitimately-issued successor token is also revoked as a result.
 
 ---
 
