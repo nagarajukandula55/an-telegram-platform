@@ -145,6 +145,9 @@ export class ConnectorsService {
         capabilities: JSON.stringify(dto.capabilities),
         config: JSON.stringify(dto.config),
         credentialRef: dto.credentialRef,
+        rateLimitPerMinute: dto.rateLimitPerMinute,
+        rateLimitPerHour: dto.rateLimitPerHour,
+        rateLimitPerDay: dto.rateLimitPerDay,
       },
     });
 
@@ -164,6 +167,17 @@ export class ConnectorsService {
   async setEnabled(organizationId: string, id: string, isEnabled: boolean) {
     await this.prisma.client.connector.updateMany({ where: { id, organizationId }, data: { isEnabled } });
     await loadConnectorsFromDb(this.prisma.client);
+    const row = await this.prisma.client.connector.findUnique({ where: { id } });
+    return row ? present(row) : null;
+  }
+
+  /** Send caps (spec §28) — pass null to clear a given window's limit. */
+  async setRateLimits(
+    organizationId: string,
+    id: string,
+    limits: { rateLimitPerMinute?: number | null; rateLimitPerHour?: number | null; rateLimitPerDay?: number | null },
+  ) {
+    await this.prisma.client.connector.updateMany({ where: { id, organizationId }, data: limits });
     const row = await this.prisma.client.connector.findUnique({ where: { id } });
     return row ? present(row) : null;
   }

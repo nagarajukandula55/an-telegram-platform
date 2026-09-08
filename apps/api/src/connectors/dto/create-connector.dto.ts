@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsObject, IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsPositive, IsString } from "class-validator";
 
 export class CreateConnectorDto {
   @IsString()
@@ -32,4 +32,24 @@ export class CreateConnectorDto {
   @IsOptional()
   @IsString()
   credentialRef?: string;
+
+  /**
+   * Send caps (spec §28) — omit any of these for "unlimited". Enforced by
+   * messaging-core's checkRateLimit() against this connector's SENT message
+   * count in the matching window, immediately before every delivery attempt.
+   */
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  rateLimitPerMinute?: number;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  rateLimitPerHour?: number;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  rateLimitPerDay?: number;
 }

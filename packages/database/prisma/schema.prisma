@@ -169,6 +169,11 @@ model Connector {
   capabilities   String
   credentialRef  String?
   config         String?
+  /// Send caps (spec §28) — null means unlimited. Enforced in messaging-core's
+  /// deliverMessage() by counting this connector's SENT messages in the window.
+  rateLimitPerMinute Int?
+  rateLimitPerHour   Int?
+  rateLimitPerDay    Int?
   healthStatus   String?
   lastHealthCheckAt DateTime?
   createdAt      DateTime @default(now())

@@ -1,6 +1,6 @@
 import { prisma } from "@an-tg/database";
 import { startQueueWorker, QUEUE_NAMES, type NewSendJobData, type QueueWorkerHandle } from "@an-tg/queue";
-import { createMessageRecord, deliverMessage, isRetryable, nextRetryDelayMs, SendValidationError } from "@an-tg/messaging-core";
+import { classifyError, createMessageRecord, deliverMessage, isRetryable, nextRetryDelayMs, SendValidationError } from "@an-tg/messaging-core";
 
 /**
  * Consumes the send queue. Each job represents one logical outbound
@@ -24,8 +24,12 @@ export function startSendWorker(): QueueWorkerHandle {
         throw err;
       }
 
-      if (message.status !== "QUEUED") {
-        // Already delivered (or terminally failed) by a previous attempt.
+      if (message.status === "SENT") {
+        // Already delivered by a previous attempt.
+        return;
+      }
+      if (message.status === "FAILED" && !isRetryable(classifyError(message.errorCode ?? undefined))) {
+        // Terminally failed (non-retryable category) on a previous attempt — do not resend.
         return;
       }
 

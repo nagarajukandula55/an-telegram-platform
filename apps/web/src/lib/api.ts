@@ -75,6 +75,9 @@ export interface ConnectorDto {
   isEnabled: boolean;
   capabilities: Record<string, boolean>;
   createdAt: string;
+  rateLimitPerMinute?: number | null;
+  rateLimitPerHour?: number | null;
+  rateLimitPerDay?: number | null;
 }
 
 export async function apiListConnectors(token: string) {
@@ -84,10 +87,72 @@ export async function apiListConnectors(token: string) {
 
 export async function apiCreateConnector(
   token: string,
-  data: { name: string; type: string; config: Record<string, unknown>; capabilities: Record<string, boolean>; credentialRef?: string; isPrimary?: boolean },
+  data: {
+    name: string;
+    type: string;
+    config: Record<string, unknown>;
+    capabilities: Record<string, boolean>;
+    credentialRef?: string;
+    isPrimary?: boolean;
+    rateLimitPerMinute?: number;
+    rateLimitPerHour?: number;
+    rateLimitPerDay?: number;
+  },
 ) {
   const res = await fetch(`${API_BASE_URL}/connectors`, {
     method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify(data),
+  });
+  return handle<ConnectorDto>(res);
+}
+
+export async function apiMtprotoLoginStart(token: string, data: { apiId: number; apiHash: string; phoneNumber: string }) {
+  const res = await fetch(`${API_BASE_URL}/connectors/mtproto/login/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify(data),
+  });
+  return handle<{ loginAttemptId: string; phoneCodeHash: string }>(res);
+}
+
+export async function apiMtprotoLoginCode(token: string, data: { loginAttemptId: string; code: string }) {
+  const res = await fetch(`${API_BASE_URL}/connectors/mtproto/login/code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify(data),
+  });
+  return handle<{ status: "needs_password" } | { status: "ready_to_finalize"; sessionString: string }>(res);
+}
+
+export async function apiMtprotoLoginPassword(token: string, data: { loginAttemptId: string; password: string }) {
+  const res = await fetch(`${API_BASE_URL}/connectors/mtproto/login/password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify(data),
+  });
+  return handle<{ status: "ready_to_finalize"; sessionString: string }>(res);
+}
+
+export async function apiMtprotoLoginFinalize(
+  token: string,
+  data: { loginAttemptId: string; sessionString: string; name: string; isPrimary?: boolean },
+) {
+  const res = await fetch(`${API_BASE_URL}/connectors/mtproto/login/finalize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify(data),
+  });
+  return handle<ConnectorDto>(res);
+}
+
+export async function apiSetConnectorRateLimits(
+  token: string,
+  id: string,
+  data: { rateLimitPerMinute?: number | null; rateLimitPerHour?: number | null; rateLimitPerDay?: number | null },
+) {
+  const res = await fetch(`${API_BASE_URL}/connectors/${id}/rate-limits`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(data),
   });

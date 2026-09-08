@@ -2,6 +2,7 @@ import type { PrismaClient, Message } from "@an-tg/database";
 import { connectorRegistry, type OutboundMessage, type MessageContentType, type MessageAttachmentRef } from "@an-tg/connectors-core";
 import { getSignedDownloadUrl } from "@an-tg/storage";
 import { checkSendable } from "./consent";
+import { checkRateLimit } from "./rate-limit";
 import { classifyError } from "./retry";
 
 export interface SendMessageInput {
@@ -142,7 +143,17 @@ export async function deliverMessage(prisma: PrismaClient, messageId: string): P
     metadata: { organizationId: message.organizationId, campaignId: message.campaignId ?? undefined, workflowRunId: message.workflowRunId ?? undefined },
   };
 
-  const result = await connector.send(outbound);
+  const connectorRow = await prisma.connector.findUniqueOrThrow({ where: { id: message.connectorId } });
+  const rateLimit = await checkRateLimit(prisma, connectorRow);
+
+  const result = rateLimit.allowed
+    ? await connector.send(outbound)
+    : {
+        accepted: false as const,
+        status: "rejected" as const,
+        errorCode: "RATE_LIMITED",
+        errorMessage: `Connector "${message.connectorId}" is over its per-${rateLimit.window} send limit`,
+      };
   const status = result.accepted ? "SENT" : "FAILED";
   const errorCategory = result.accepted ? undefined : classifyError(result.errorCode);
 

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { ConnectorsService } from "./connectors.service";
 import { CreateConnectorDto } from "./dto/create-connector.dto";
+import { SetRateLimitsDto } from "./dto/set-rate-limits.dto";
 import {
   FinalizeMtprotoConnectorDto,
   StartMtprotoLoginDto,
@@ -51,6 +52,21 @@ export class ConnectorsController {
       action: isEnabled ? "connector.enabled" : "connector.disabled",
       entityType: "Connector",
       entityId: id,
+    });
+    return connector;
+  }
+
+  @Roles("TENANT_ADMIN", "SUPER_ADMIN", "DEVELOPER")
+  @Patch(":id/rate-limits")
+  async setRateLimits(@Param("id") id: string, @Body() dto: SetRateLimitsDto, @CurrentUser() user: CurrentUserPayload) {
+    const connector = await this.connectors.setRateLimits(user.organizationId, id, dto);
+    await this.audit.log({
+      organizationId: user.organizationId,
+      userId: user.userId,
+      action: "connector.rate_limits_updated",
+      entityType: "Connector",
+      entityId: id,
+      metadata: { ...dto },
     });
     return connector;
   }
