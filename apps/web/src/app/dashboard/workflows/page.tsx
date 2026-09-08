@@ -2,25 +2,36 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuthToken } from "@/lib/useAuth";
-import { apiListWorkflows, apiCreateWorkflow, apiTriggerWorkflow, apiWorkflowRuns, apiApproveWorkflowRun, WorkflowDto } from "@/lib/api";
+import {
+  apiListWorkflows,
+  apiCreateWorkflow,
+  apiTriggerWorkflow,
+  apiWorkflowRuns,
+  apiApproveWorkflowRun,
+  WorkflowDto,
+  WorkflowDefinitionDto,
+} from "@/lib/api";
+import WorkflowBuilder from "./WorkflowBuilder";
 
-const EXAMPLE_DEFINITION = JSON.stringify(
-  {
-    nodes: [
-      { id: "n1", type: "log", config: { message: "workflow started" } },
-      { id: "n2", type: "wait", config: { delayMs: 5000 } },
-      { id: "n3", type: "log", config: { message: "workflow finished" } },
-    ],
-  },
-  null,
-  2,
-);
+const EXAMPLE_DEFINITION: WorkflowDefinitionDto = {
+  nodes: [
+    { id: "n1", type: "log", config: { message: "workflow started" }, position: { x: 40, y: 40 } },
+    { id: "n2", type: "wait", config: { delayMs: 5000 }, position: { x: 230, y: 40 } },
+    { id: "n3", type: "log", config: { message: "workflow finished" }, position: { x: 420, y: 40 } },
+  ],
+  edges: [
+    { from: "n1", to: "n2" },
+    { from: "n2", to: "n3" },
+  ],
+  startNodeId: "n1",
+};
 
 export default function WorkflowsPage() {
   const token = useAuthToken();
   const [workflows, setWorkflows] = useState<WorkflowDto[]>([]);
   const [name, setName] = useState("");
-  const [definitionJson, setDefinitionJson] = useState(EXAMPLE_DEFINITION);
+  const [mode, setMode] = useState<"builder" | "json" | null>(null);
+  const [definitionJson, setDefinitionJson] = useState(JSON.stringify(EXAMPLE_DEFINITION, null, 2));
   const [error, setError] = useState<string | null>(null);
   const [runsFor, setRunsFor] = useState<string | null>(null);
   const [runs, setRuns] = useState<Array<{ id: string; status: string; startedAt: string; finishedAt: string | null }>>([]);
@@ -32,15 +43,24 @@ export default function WorkflowsPage() {
 
   useEffect(refresh, [refresh]);
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
+  async function saveWorkflow(definition: WorkflowDefinitionDto) {
     if (!token) return;
     setError(null);
     try {
-      const definition = JSON.parse(definitionJson);
       await apiCreateWorkflow(token, { name, definition });
       setName("");
+      setMode(null);
       refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create workflow");
+    }
+  }
+
+  async function handleJsonCreate(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const definition = JSON.parse(definitionJson) as WorkflowDefinitionDto;
+      await saveWorkflow(definition);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create workflow");
     }
@@ -71,30 +91,61 @@ export default function WorkflowsPage() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-5xl">
       <h1 className="mb-6 text-xl font-semibold">Workflows</h1>
 
-      <form onSubmit={handleCreate} className="mb-6 space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-        <div>
-          <label className="mb-1 block text-xs text-gray-500">Name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required className="w-full rounded border border-gray-300 px-2 py-1 text-sm" />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-gray-500">
-            Definition (JSON — nodes run strictly in order; types: trigger/send/wait/log/condition/human_approval)
-          </label>
-          <textarea
-            value={definitionJson}
-            onChange={(e) => setDefinitionJson(e.target.value)}
-            rows={10}
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+      {mode === null && (
+        <div className="mb-6 flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Workflow name"
+            className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
           />
+          <button
+            onClick={() => setMode("builder")}
+            disabled={!name}
+            className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            Open visual builder
+          </button>
+          <button
+            onClick={() => setMode("json")}
+            disabled={!name}
+            className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Advanced: raw JSON
+          </button>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
-          Create workflow
-        </button>
-      </form>
+      )}
+
+      {mode === "builder" && <WorkflowBuilder token={token} onSave={saveWorkflow} onCancel={() => setMode(null)} />}
+
+      {mode === "json" && (
+        <form onSubmit={handleJsonCreate} className="mb-6 space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">
+              Definition (JSON — {"{ nodes, edges, startNodeId }"}; node types: trigger/send/wait/log/condition/switch/loop/batch/human_approval)
+            </label>
+            <textarea
+              value={definitionJson}
+              onChange={(e) => setDefinitionJson(e.target.value)}
+              rows={14}
+              className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+              Create workflow
+            </button>
+            <button type="button" onClick={() => setMode(null)} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <table className="w-full text-sm">

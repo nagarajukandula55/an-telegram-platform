@@ -293,20 +293,39 @@ similar issues extending this):
 
 ## What's still open
 
-- Automated test suite is minimal — `packages/messaging-core` has unit
-  tests (consent/retry/rate-limit) but most of `apps/api`/`apps/worker`
-  is still only exercised by manual curl + log inspection.
+- Automated test suite covers `packages/messaging-core` (consent/retry/
+  rate-limit/template) and `apps/worker`'s workflow graph-resolution logic
+  (branch/switch/loop edge selection) — but most of `apps/api`'s HTTP
+  layer is still only exercised by manual curl + log inspection.
 - CI pipeline now runs install/typecheck/test/build on every push/PR
   (`.github/workflows/ci.yml`), but doesn't run lint (no package defines
   a `lint` script yet) or any integration/e2e suite.
-- Web UI is functional but intentionally minimal: campaigns/workflows use
-  plain forms and a raw JSON node editor rather than the wizard/visual
-  builder described in spec §55/§13 — good enough to exercise every API
-  path for testing, not a finished design.
+- [x] Workflow engine now walks a real node/edge graph instead of a flat
+  ordered array: `condition` nodes actually branch (true/false edges),
+  added `switch` (multi-way, matched against a context field) and `loop`
+  (repeats a subgraph N times via a loop-back edge) node types, and
+  `batch` (fan-out send to a list of recipients in one step). Per-run
+  state (`WorkflowRun.context`) accumulates every node's output so later
+  condition/switch nodes can read earlier results. See
+  `apps/worker/src/processors/workflow.processor.ts`.
+- [x] `/dashboard/workflows` gained a visual node-graph builder
+  (`apps/web/src/app/dashboard/workflows/WorkflowBuilder.tsx`): add/drag/
+  connect nodes, per-type config forms, pick a start node — the raw-JSON
+  editor is kept as an "Advanced" fallback, not removed. Campaigns still
+  use a plain form (no visual audience/schedule/preview wizard yet).
+- [x] Campaign template personalization: `{{contact.name}}` /
+  `{{variables.x}}` placeholders in the template body are rendered
+  per-recipient before sending (`packages/messaging-core/src/template.ts`,
+  wired into `campaign.processor.ts`) — previously sent the raw
+  unrendered body to everyone.
 - No refresh-token reuse detection beyond rejecting an already-revoked
   token — a stolen-and-replayed refresh token isn't distinguished from
   an expired one, and there's no "reuse detected, revoke the whole
   chain" response yet.
+- Campaigns page is still a plain form (connector + template + recipient
+  list), not a guided audience/schedule/preview wizard.
+- No campaign report export (XLSX/CSV/PDF) — only the JSON status per
+  recipient via the runs view.
 
 ---
 

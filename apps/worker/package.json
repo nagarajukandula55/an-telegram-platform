@@ -7,7 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@an-tg/database": "workspace:*",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@types/node": "^20.14.0",
     "tsx": "^4.19.1",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
   }
 }

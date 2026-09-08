@@ -28,5 +28,5 @@ export interface CampaignJobData {
 export interface WorkflowJobData {
   workflowRunId: string;
   workflowId: string;
-  stepIndex: number;
+  nodeId: string;
 }

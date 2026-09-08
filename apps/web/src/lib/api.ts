@@ -283,7 +283,26 @@ export async function apiListWorkflows(token: string) {
   return handle<WorkflowDto[]>(res);
 }
 
-export async function apiCreateWorkflow(token: string, data: { name: string; definition: { nodes: Array<{ id: string; type: string; config: Record<string, unknown> }> } }) {
+export interface WorkflowNodeDto {
+  id: string;
+  type: string;
+  config: Record<string, unknown>;
+  position?: { x: number; y: number };
+}
+
+export interface WorkflowEdgeDto {
+  from: string;
+  to: string;
+  when?: string;
+}
+
+export interface WorkflowDefinitionDto {
+  nodes: WorkflowNodeDto[];
+  edges: WorkflowEdgeDto[];
+  startNodeId: string;
+}
+
+export async function apiCreateWorkflow(token: string, data: { name: string; definition: WorkflowDefinitionDto }) {
   const res = await fetch(`${API_BASE_URL}/workflows`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(token) },

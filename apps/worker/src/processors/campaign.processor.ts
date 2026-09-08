@@ -1,5 +1,6 @@
 import { prisma } from "@an-tg/database";
 import { startQueueWorker, enqueue, QUEUE_NAMES, type CampaignJobData, type QueueWorkerHandle } from "@an-tg/queue";
+import { renderTemplate } from "@an-tg/messaging-core";
 
 /**
  * Fans a campaign out into one send-queue job per recipient (contacts and
@@ -32,15 +33,31 @@ export function startCampaignWorker(): QueueWorkerHandle {
           ? `campaign:${campaign.id}:group:${recipient.groupId}`
           : `campaign:${campaign.id}:contact:${recipient.contactId}`;
 
-        // TODO(Phase 6/9 personalization engine): render campaign.template.body
-        // against recipient.variables / contact fields instead of sending raw body.
+        // Personalization (spec §6): {{contact.*}} / {{variables.*}} placeholders
+        // in the template body are rendered per-recipient before sending —
+        // group sends have no `contact`, so only `variables` resolves for them.
+        const rawBody = campaign.template?.body ?? "";
+        const renderedBody = renderTemplate(rawBody, {
+          contact: recipient.contact
+            ? {
+                name: recipient.contact.name,
+                phone: recipient.contact.phone,
+                email: recipient.contact.email,
+                company: recipient.contact.company,
+                language: recipient.contact.language,
+                ...(recipient.contact.customFields ? (JSON.parse(recipient.contact.customFields) as Record<string, unknown>) : {}),
+              }
+            : {},
+          variables: recipient.variables ? (JSON.parse(recipient.variables) as Record<string, unknown>) : {},
+        });
+
         await enqueue(prisma, QUEUE_NAMES.SEND, {
           organizationId: campaign.organizationId,
           connectorId: campaign.connectorId,
           toPhone: isGroup ? undefined : recipient.contact?.phone,
           toGroupId: isGroup ? recipient.groupId ?? undefined : undefined,
           contentType: "text",
-          body: campaign.template?.body ?? "",
+          body: renderedBody,
           idempotencyKey,
           campaignId: campaign.id,
           contactId: recipient.contactId ?? undefined,
