@@ -9,14 +9,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@an-tg/database": "workspace:*",
-    "@an-tg/connectors-core": "workspace:*",
-    "@an-tg/connectors-bootstrap": "workspace:*",
-    "@an-tg/messaging-core": "workspace:*",
     "@an-tg/ai-core": "workspace:*",
-    "@an-tg/connector-telegram-bot": "workspace:*",
     "@an-tg/connector-custom-http": "workspace:*",
+    "@an-tg/connector-telegram-bot": "workspace:*",
     "@an-tg/connector-telegram-mtproto": "workspace:*",
+    "@an-tg/connectors-bootstrap": "workspace:*",
+    "@an-tg/connectors-core": "workspace:*",
+    "@an-tg/database": "workspace:*",
+    "@an-tg/messaging-core": "workspace:*",
     "@an-tg/queue": "workspace:*",
     "@an-tg/storage": "workspace:*",
     "@nestjs/common": "^10.4.4",
@@ -30,11 +30,12 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "multer": "^1.4.5-lts.1",
-    "xlsx": "^0.18.5",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdfkit": "^0.20.2",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.5",
@@ -43,6 +44,7 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^20.14.0",
     "@types/passport-jwt": "^4.0.1",
+    "@types/pdfkit": "^0.17.6",
     "typescript": "^5.6.3"
   }
 }

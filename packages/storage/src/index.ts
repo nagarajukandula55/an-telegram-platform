@@ -2,6 +2,9 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+export * from "./malware-scan";
+export * from "./watermark";
+
 function storageDir(): string {
   return process.env.ATTACHMENT_STORAGE_DIR ?? path.join(process.cwd(), "data", "attachments");
 }

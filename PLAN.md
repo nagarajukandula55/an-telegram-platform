@@ -203,22 +203,31 @@ an-telegram-platform/
 - [ ] Connector config UI (endpoint, secret, capability declaration)
 - [ ] SDK docs/examples: Node.js, Python, REST
 
-## Phase 6 — Workflow engine (done this session, partially)
+## Phase 6 — Workflow engine (done)
 
-- [x] Workflow definition: `{ nodes: [{id, type, config}] }`, executed
-      strictly in array order by `apps/worker/src/processors/workflow.processor.ts`
+- [x] Workflow definition: `{ nodes, edges, startNodeId }` — a real
+      node/edge graph, walked by `apps/worker/src/processors/workflow.processor.ts`
+      (originally a flat array executed strictly in order; rewritten,
+      see Phase 8/9 commit history, once branch/switch/loop needed actual
+      branching rather than a computed-but-unused `matched` flag)
 - [x] Node types implemented: `trigger`, `send` (goes through the same
       `createMessageRecord`/`deliverMessage` path as everything else),
-      `wait` (delayed queue job), `log`, `condition` (simple field===value),
-      `human_approval` (pauses the run; `POST /workflows/runs/:id/approve` resumes it)
-- [x] `WorkflowRun`/`WorkflowStepRun` persistence, `POST /workflows/:id/trigger`
-- [ ] Branch/switch/loop/batch nodes (spec §13 lists these; only a strictly
-      sequential executor exists today — no real branching yet)
-- [x] Workflows page (`/dashboard/workflows`): raw-JSON node editor (not a
-      visual builder yet), trigger, run list, and an Approve-and-resume
-      button for runs paused on a `human_approval` node
+      `wait` (delayed queue job), `log`, `condition` (true/false edges),
+      `switch` (multi-way, matched against a context field, with a
+      `default` fallback edge), `loop` (repeats a subgraph N times via a
+      loop-back edge), `batch` (fan-out send to a list of recipients in
+      one step), `human_approval` (pauses the run;
+      `POST /workflows/runs/:id/approve` resumes it)
+- [x] `WorkflowRun`/`WorkflowStepRun` persistence, `POST /workflows/:id/trigger`;
+      `WorkflowRun.context` accumulates every node's output keyed by node
+      id so later condition/switch nodes can read earlier results
+- [x] Workflows page (`/dashboard/workflows`): a visual drag/connect
+      node-graph builder (`WorkflowBuilder.tsx`) with per-type config
+      forms and an "AI propose from description" starting point (Phase
+      9), plus a raw-JSON "Advanced" fallback, trigger, run list, and an
+      Approve-and-resume button for runs paused on a `human_approval` node
 
-## Phase 7 — Attachments (done this session, partially)
+## Phase 7 — Attachments (done)
 
 - [x] `packages/storage`: local-disk store, `uploadAttachment` (SHA-256
       hash, org-prefixed key) + `getSignedDownloadUrl` (HMAC-signed,
@@ -228,11 +237,34 @@ an-telegram-platform/
 - [x] `POST /attachments` (multipart upload) with a MIME allowlist + 16MB
       size cap; `deliverMessage` resolves a message's attachments through
       the `MessageAttachment` join table
-- [ ] Malware/virus scan hook (spec §70) — allowlist + size check only right now
-- [ ] Excel range → image/PDF renderer
-- [ ] Watermarking
+- [x] Malware/virus scan hook (spec §70): `packages/storage/src/malware-scan.ts`'s
+  `scanBuffer()` is pluggable and off by default (same pattern as
+  `packages/ai-core`) — set `CLAMAV_HOST`/`CLAMAV_PORT` to enable; speaks
+  clamd's INSTREAM protocol directly over a raw TCP socket, no npm
+  dependency. Fails open (upload still succeeds, `scanned: false`) if the
+  scanner is unreachable rather than blocking every upload platform-wide
+  if clamd goes down. Wired into `attachments.service.ts`'s `upload()` —
+  an infected file is rejected outright, never persisted. Verified with a
+  fake TCP server speaking the real protocol (OK/FOUND/unreachable cases).
+- [x] Watermarking: `packages/storage/src/watermark.ts`'s
+  `applyWatermark()` (via `jimp`, pure JS, no native binary) stamps text
+  across the bottom-right of a JPEG/PNG attachment. Opt-in per upload
+  (`watermarkText` form field on `POST /attachments`, wired into the
+  Compose page's attachment picker) — not automatic, since not every
+  attachment should be stamped.
+- [x] Excel range → PDF renderer: new `apps/api/src/excel` module
+  (`POST /excel/render`, multipart xlsx + `range` + optional `sheetName`/
+  `title`) reads a cell range via the already-installed `xlsx` package
+  and draws it as a simple grid-table PDF via `pdfkit`, stored as a
+  normal `Attachment` — usable from Compose/Campaigns like any other
+  file. Not full spreadsheet-fidelity (no cell styling/formula display,
+  just computed values), and image export was dropped in favor of PDF
+  only (a table renders more usefully as PDF than as a static image, and
+  avoids a second rendering path). Verified end-to-end against a running
+  api instance: real xlsx in, valid PDF attachment out, plus confirmed
+  invalid sheet/range names return a clear 400 instead of a crash.
 
-## Phase 8 — Inbox
+## Phase 8 — Inbox (done)
 
 - [x] Inbound message handling → Conversation model. `Conversation` gained
   `organizationId`/`connectorId`/`assignedTo` relations and `lastInboundAt`
@@ -259,7 +291,7 @@ an-telegram-platform/
   assign → status change → reply, plus confirmed a redelivered
   `update_id` is deduplicated rather than creating a second message.
 
-## Phase 9 — Optional AI
+## Phase 9 — Optional AI (done)
 
 - [x] `packages/ai-core`: a pluggable `AiProvider` interface (one method,
   `complete()`) with an `OpenAiCompatibleProvider` implementation over

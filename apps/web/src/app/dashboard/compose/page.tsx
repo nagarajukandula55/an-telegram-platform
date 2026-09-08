@@ -14,6 +14,7 @@ export default function ComposePage() {
   const [toGroupId, setToGroupId] = useState("");
   const [body, setBody] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [watermarkText, setWatermarkText] = useState("");
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -42,7 +43,7 @@ export default function ComposePage() {
     try {
       let attachmentId: string | undefined;
       if (file) {
-        const uploaded = await apiUploadAttachment(token, file);
+        const uploaded = await apiUploadAttachment(token, file, watermarkText || undefined);
         attachmentId = uploaded.id;
       }
       const message = await apiSendMessage(token, {
@@ -126,6 +127,14 @@ export default function ComposePage() {
         <div>
           <label className="mb-1 block text-xs text-gray-500">Attachment (optional)</label>
           <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />
+          {file && (file.type === "image/jpeg" || file.type === "image/png") && (
+            <input
+              value={watermarkText}
+              onChange={(e) => setWatermarkText(e.target.value)}
+              placeholder="Watermark text (optional, e.g. your org name)"
+              className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+          )}
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button

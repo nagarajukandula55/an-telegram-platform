@@ -207,9 +207,11 @@ export async function apiSendMessage(
   return handle(res);
 }
 
-export async function apiUploadAttachment(token: string, file: File) {
+/** `watermarkText`, if set, is stamped onto JPEG/PNG attachments (spec §70) — ignored for other file types. */
+export async function apiUploadAttachment(token: string, file: File, watermarkText?: string) {
   const form = new FormData();
   form.append("file", file);
+  if (watermarkText) form.append("watermarkText", watermarkText);
   const res = await fetch(`${API_BASE_URL}/attachments`, { method: "POST", headers: authHeaders(token), body: form });
   return handle<{ id: string; originalName: string }>(res);
 }

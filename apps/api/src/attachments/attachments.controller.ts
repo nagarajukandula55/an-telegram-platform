@@ -1,4 +1,4 @@
-import { Controller, Get, Post, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Get, Post, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AttachmentsService } from "./attachments.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
@@ -15,8 +15,12 @@ export class AttachmentsController {
 
   @Post()
   @UseInterceptors(FileInterceptor("file"))
-  async upload(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: CurrentUserPayload) {
-    const attachment = await this.attachments.upload(user.organizationId, file);
+  async upload(
+    @UploadedFile() file: Express.Multer.File,
+    @Body("watermarkText") watermarkText: string | undefined,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    const attachment = await this.attachments.upload(user.organizationId, file, watermarkText);
     await this.audit.log({
       organizationId: user.organizationId,
       userId: user.userId,

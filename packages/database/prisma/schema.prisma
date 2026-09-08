@@ -252,6 +252,8 @@ model Attachment {
   storageLocation String
   sourceType     String?
   expiresAt      DateTime?
+  /// "scanned" | "skipped_not_configured" | "skipped_unreachable" — an infected upload is rejected outright (see attachments.service.ts), so no Attachment row is ever created for one.
+  malwareScanStatus String?
   createdAt      DateTime @default(now())
 
   messageAttachments MessageAttachment[]

@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
-import { uploadAttachment } from "@an-tg/storage";
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import { applyWatermark, isWatermarkable, scanBuffer, uploadAttachment } from "@an-tg/storage";
 import { PrismaService } from "../common/prisma.service";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -21,12 +21,17 @@ const MAX_SIZE_BYTES = 16 * 1024 * 1024; // 16MB, generous placeholder — tight
 
 @Injectable()
 export class AttachmentsService {
+  private readonly logger = new Logger(AttachmentsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
-  async upload(organizationId: string, file: { buffer: Buffer; originalname: string; mimetype: string; size: number }) {
+  async upload(
+    organizationId: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    watermarkText?: string,
+  ) {
     // Never trust the client-supplied extension alone — validate the
-    // declared MIME type against an allowlist. A real malware-scan hook
-    // (spec §70) is still a follow-up; this is allowlist + size only.
+    // declared MIME type against an allowlist.
     if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException(`MIME type "${file.mimetype}" is not allowed`);
     }
@@ -34,8 +39,25 @@ export class AttachmentsService {
       throw new BadRequestException(`File exceeds maximum size of ${MAX_SIZE_BYTES} bytes`);
     }
 
+    // Malware scan hook (spec §70) — off by default (see packages/storage's
+    // scanBuffer doc comment); when a scanner is configured and reports an
+    // infection, the upload is rejected outright rather than stored.
+    const scan = await scanBuffer(file.buffer);
+    if (!scan.clean) {
+      this.logger.warn(`Rejected upload "${file.originalname}" for org ${organizationId}: ${scan.detail}`);
+      throw new BadRequestException(`File failed malware scan: ${scan.detail}`);
+    }
+
+    // Watermarking (spec §70) — opt-in per upload via the `watermarkText`
+    // form field; only meaningful for JPEG/PNG (isWatermarkable), silently
+    // ignored for every other mime type rather than rejecting the upload.
+    let buffer = file.buffer;
+    if (watermarkText && isWatermarkable(file.mimetype)) {
+      buffer = await applyWatermark(buffer, watermarkText);
+    }
+
     const uploaded = await uploadAttachment({
-      buffer: file.buffer,
+      buffer,
       originalName: file.originalname,
       mimeType: file.mimetype,
       organizationId,
@@ -50,6 +72,7 @@ export class AttachmentsService {
         sizeBytes: uploaded.sizeBytes,
         hash: uploaded.hash,
         storageLocation: uploaded.storedName,
+        malwareScanStatus: scan.status,
       },
     });
   }
