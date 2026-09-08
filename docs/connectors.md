@@ -39,8 +39,12 @@ work around).
    (the token is read from the env var named by `credentialRef`, not
    stored inline), **Credential env var name** = whichever env var holds
    the token.
-4. For delivery/incoming-message updates, see the Webhooks section of
-   `/dashboard/help` and set `TELEGRAM_WEBHOOK_SECRET`.
+4. For delivery/incoming-message updates via webhook mode (instead of the
+   default long-polling), click **Generate**/**Reveal** on the connector's
+   row in `/dashboard/connectors` to get its per-connector webhook secret,
+   then pass that as `secret_token` in Telegram's `setWebhook` call — each
+   Bot API connector gets its own auto-generated secret, no shared env var
+   needed across connectors/orgs.
 
 No group-broadcast support — bots can post into a group they're a member
 of, but can't originate a bulk group-DM the way an MTProto user session can.

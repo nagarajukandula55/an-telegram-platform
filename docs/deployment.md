@@ -47,9 +47,6 @@ calls.
 
 ## Also needed before "production" regardless of hosting
 
-- Per-organization webhook secrets, if you'll ever have more than one
-  Telegram Bot API connector across different orgs (today it's one global
-  env var pair per deployment).
 - A broader automated test suite — `packages/messaging-core` has unit
   tests and CI runs them on every push, but most of `apps/api`/
   `apps/worker` is still only manually verified.

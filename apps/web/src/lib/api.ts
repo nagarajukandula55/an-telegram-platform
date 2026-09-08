@@ -100,6 +100,7 @@ export interface ConnectorDto {
   rateLimitPerMinute?: number | null;
   rateLimitPerHour?: number | null;
   rateLimitPerDay?: number | null;
+  hasWebhookSecret?: boolean;
 }
 
 export async function apiListConnectors(token: string) {
@@ -166,6 +167,19 @@ export async function apiMtprotoLoginFinalize(
     body: JSON.stringify(data),
   });
   return handle<ConnectorDto>(res);
+}
+
+export async function apiGetWebhookSecret(token: string, id: string) {
+  const res = await fetch(`${API_BASE_URL}/connectors/${id}/webhook-secret`, { headers: authHeaders(token) });
+  return handle<{ webhookSecret: string | null }>(res);
+}
+
+export async function apiRegenerateWebhookSecret(token: string, id: string) {
+  const res = await fetch(`${API_BASE_URL}/connectors/${id}/webhook-secret/regenerate`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handle<{ webhookSecret: string }>(res);
 }
 
 export async function apiSetConnectorRateLimits(

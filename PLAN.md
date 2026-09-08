@@ -115,7 +115,13 @@ an-telegram-platform/
       presented token), and `POST /auth/logout-all` (revokes every
       session for the caller). The web app refreshes silently in the
       background (`useAuthToken` in `apps/web/src/lib/useAuth.ts`).
-- [ ] Still open: no per-connector webhook secrets (see Phase 4 note)
+- [x] Per-connector webhook secrets: `Connector.webhookSecret` is
+      auto-generated for every TELEGRAM_BOT connector at creation time
+      and verified per-connector in `webhooks.controller.ts` (falls back
+      to the old global `TELEGRAM_WEBHOOK_SECRET` only for connectors
+      created before this migration). Reveal/regenerate via
+      `GET`/`POST /connectors/:id/webhook-secret[/regenerate]`, or the
+      connectors page UI.
 
 ## Phase 2 — Telegram MTProto desktop agent (done this session, partially)
 
@@ -297,9 +303,6 @@ similar issues extending this):
   plain forms and a raw JSON node editor rather than the wizard/visual
   builder described in spec §55/§13 — good enough to exercise every API
   path for testing, not a finished design.
-- Per-organization Telegram Bot API webhook secrets (see Phase 4 note
-  above) — currently one global env var per secret, fine for a single
-  Bot API connector per deployment.
 - No refresh-token reuse detection beyond rejecting an already-revoked
   token — a stolen-and-replayed refresh token isn't distinguished from
   an expired one, and there's no "reuse detected, revoke the whole

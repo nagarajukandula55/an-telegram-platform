@@ -10,6 +10,8 @@ import {
   apiMtprotoLoginCode,
   apiMtprotoLoginPassword,
   apiMtprotoLoginFinalize,
+  apiGetWebhookSecret,
+  apiRegenerateWebhookSecret,
   ConnectorDto,
 } from "@/lib/api";
 
@@ -45,12 +47,13 @@ export default function ConnectorsPage() {
               <th className="px-4 py-2">Enabled</th>
               <th className="px-4 py-2">Id (use for compose/campaigns)</th>
               <th className="px-4 py-2">Send caps (per min/hr/day)</th>
+              <th className="px-4 py-2">Webhook secret</th>
             </tr>
           </thead>
           <tbody>
             {connectors.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
                   No connectors yet.
                 </td>
               </tr>
@@ -327,7 +330,60 @@ function ConnectorRow({
           </button>
         )}
       </td>
+      <td className="px-4 py-2">{connector.type === "TELEGRAM_BOT" && <WebhookSecretCell connector={connector} token={token} onError={onError} />}</td>
     </tr>
+  );
+}
+
+function WebhookSecretCell({
+  connector,
+  token,
+  onError,
+}: {
+  connector: ConnectorDto;
+  token: string | null;
+  onError: (msg: string | null) => void;
+}) {
+  const [revealed, setRevealed] = useState<string | null>(null);
+
+  async function reveal() {
+    if (!token) return;
+    onError(null);
+    try {
+      const { webhookSecret } = await apiGetWebhookSecret(token, connector.id);
+      setRevealed(webhookSecret ?? "(none — regenerate to create one)");
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to fetch webhook secret");
+    }
+  }
+
+  async function regenerate() {
+    if (!token) return;
+    onError(null);
+    try {
+      const { webhookSecret } = await apiRegenerateWebhookSecret(token, connector.id);
+      setRevealed(webhookSecret);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to regenerate webhook secret");
+    }
+  }
+
+  if (revealed) {
+    return (
+      <div className="max-w-[14rem]">
+        <p className="break-all font-mono text-xs text-gray-600">{revealed}</p>
+        <p className="mt-0.5 text-[11px] text-gray-400">Set this as `secret_token` in Telegram's setWebhook call.</p>
+        <button onClick={regenerate} className="mt-1 text-xs text-indigo-600 hover:underline">
+          Regenerate
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={reveal} className="text-xs text-indigo-600 hover:underline">
+      {connector.hasWebhookSecret ? "Reveal" : "Generate"}
+    </button>
   );
 }
 

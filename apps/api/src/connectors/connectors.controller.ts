@@ -71,6 +71,26 @@ export class ConnectorsController {
     return connector;
   }
 
+  @Roles("TENANT_ADMIN", "SUPER_ADMIN", "DEVELOPER")
+  @Get(":id/webhook-secret")
+  getWebhookSecret(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.connectors.getWebhookSecret(user.organizationId, id);
+  }
+
+  @Roles("TENANT_ADMIN", "SUPER_ADMIN", "DEVELOPER")
+  @Post(":id/webhook-secret/regenerate")
+  async regenerateWebhookSecret(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
+    const result = await this.connectors.regenerateWebhookSecret(user.organizationId, id);
+    await this.audit.log({
+      organizationId: user.organizationId,
+      userId: user.userId,
+      action: "connector.webhook_secret_regenerated",
+      entityType: "Connector",
+      entityId: id,
+    });
+    return result;
+  }
+
   // -- MTProto interactive login (phone -> code -> optional 2FA -> finalize) --
 
   @Roles("TENANT_ADMIN", "SUPER_ADMIN", "DEVELOPER")

@@ -193,6 +193,12 @@ model Connector {
   rateLimitPerMinute Int?
   rateLimitPerHour   Int?
   rateLimitPerDay    Int?
+  /// Per-connector Telegram Bot API webhook secret (X-Telegram-Bot-Api-Secret-Token),
+  /// auto-generated for TELEGRAM_BOT connectors — replaces the old single
+  /// global TELEGRAM_WEBHOOK_SECRET env var, which only worked for one
+  /// Bot API connector per deployment. Set this same value with `secret_token`
+  /// when calling Telegram's setWebhook for this bot.
+  webhookSecret  String?
   healthStatus   String?
   lastHealthCheckAt DateTime?
   createdAt      DateTime @default(now())

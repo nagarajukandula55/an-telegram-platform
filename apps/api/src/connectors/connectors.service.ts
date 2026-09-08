@@ -1,5 +1,5 @@
-import { Injectable, Logger, BadRequestException } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { Injectable, Logger, BadRequestException, NotFoundException } from "@nestjs/common";
+import { randomUUID, randomBytes } from "node:crypto";
 import { loadConnectorsFromDb } from "@an-tg/connectors-bootstrap";
 import { encryptSecret } from "@an-tg/connectors-core";
 import { MtprotoLoginSession } from "@an-tg/connector-telegram-mtproto";
@@ -8,12 +8,21 @@ import { PrismaService } from "../common/prisma.service";
 import { CreateConnectorDto } from "./dto/create-connector.dto";
 import type { StartMtprotoLoginDto } from "./dto/mtproto-login.dto";
 
-/** Connector rows store capabilities/config as JSON strings (SQLite has no Json column type) — parse for API responses. */
+/**
+ * Connector rows store capabilities/config as JSON strings (SQLite has no
+ * Json column type) — parse for API responses. `webhookSecret` is
+ * deliberately redacted here (replaced with a boolean) since this is what
+ * every list/create/update caller in this file returns — reveal it only via
+ * the dedicated `getWebhookSecret` endpoint, gated the same as connector
+ * creation.
+ */
 function present(row: Connector) {
   return {
     ...row,
     capabilities: JSON.parse(row.capabilities) as Record<string, boolean>,
     config: row.config ? (JSON.parse(row.config) as Record<string, unknown>) : null,
+    webhookSecret: undefined,
+    hasWebhookSecret: Boolean(row.webhookSecret),
   };
 }
 
@@ -148,6 +157,9 @@ export class ConnectorsService {
         rateLimitPerMinute: dto.rateLimitPerMinute,
         rateLimitPerHour: dto.rateLimitPerHour,
         rateLimitPerDay: dto.rateLimitPerDay,
+        // Only Bot API connectors receive Telegram webhooks; MTProto/custom
+        // middleware have their own auth (session/HMAC) and don't need one.
+        webhookSecret: dto.type === "TELEGRAM_BOT" ? randomBytes(24).toString("hex") : null,
       },
     });
 
@@ -169,6 +181,26 @@ export class ConnectorsService {
     await loadConnectorsFromDb(this.prisma.client);
     const row = await this.prisma.client.connector.findUnique({ where: { id } });
     return row ? present(row) : null;
+  }
+
+  /**
+   * Reveals the connector's webhook secret so it can be copied into the
+   * `secret_token` parameter of Telegram's `setWebhook` call. Only makes
+   * sense for TELEGRAM_BOT connectors — others have no webhook secret.
+   */
+  async getWebhookSecret(organizationId: string, id: string): Promise<{ webhookSecret: string | null }> {
+    const row = await this.prisma.client.connector.findFirst({ where: { id, organizationId } });
+    if (!row) throw new NotFoundException("Connector not found");
+    return { webhookSecret: row.webhookSecret };
+  }
+
+  /** Rotates the webhook secret — remember to also update it in Telegram's setWebhook call, or delivery will start failing verification. */
+  async regenerateWebhookSecret(organizationId: string, id: string): Promise<{ webhookSecret: string }> {
+    const row = await this.prisma.client.connector.findFirst({ where: { id, organizationId } });
+    if (!row) throw new NotFoundException("Connector not found");
+    const webhookSecret = randomBytes(24).toString("hex");
+    await this.prisma.client.connector.update({ where: { id }, data: { webhookSecret } });
+    return { webhookSecret };
   }
 
   /** Send caps (spec §28) — pass null to clear a given window's limit. */
