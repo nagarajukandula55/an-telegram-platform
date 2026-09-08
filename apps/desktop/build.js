@@ -1,9 +1,12 @@
 // Assembles apps/desktop/resources/ — everything the Electron shell spawns
 // at runtime (api, worker, web) as self-contained, non-symlinked
-// directories, plus a pre-migrated template SQLite db and a bundled
-// node.exe. Unlike the sibling an-whatsapp-platform build, there's no
-// browser-automation service to bundle here — MTProto (GramJS) is a plain
-// TCP/TLS client that runs in-process inside api/worker, no Chromium needed.
+// directories, plus a pre-migrated template SQLite db, a "migrate" bundle
+// (the prisma CLI + schema/migrations, for applying pending migrations to
+// an existing user's db on upgrade — see main.js's ensureDatabase()), and a
+// bundled node.exe. Unlike the sibling an-whatsapp-platform build, there's
+// no browser-automation service to bundle here — MTProto (GramJS) is a
+// plain TCP/TLS client that runs in-process inside api/worker, no Chromium
+// needed.
 //
 // Run from the repo root via `pnpm --filter @an-tg/desktop build:resources`,
 // or as part of `pnpm --filter @an-tg/desktop dist:win`.
@@ -73,10 +76,12 @@ function patchPrismaClient(deployDir) {
   fs.cpSync(generated, dest, { recursive: true });
 }
 
-function deployApp(pkgName, dirName) {
+function deployApp(pkgName, dirName, { prod = true } = {}) {
   const target = path.join(RESOURCES, dirName);
   rmrf(target);
-  run("pnpm", ["--filter", pkgName, "deploy", "--prod", "--config.node-linker=hoisted", target]);
+  const args = ["--filter", pkgName, "deploy", "--config.node-linker=hoisted", target];
+  if (prod) args.splice(2, 0, "--prod");
+  run("pnpm", args);
   patchPrismaClient(target);
 }
 
@@ -91,6 +96,12 @@ rmrf(RESOURCES);
 fs.mkdirSync(RESOURCES, { recursive: true });
 deployApp("@an-tg/api", "api");
 deployApp("@an-tg/worker", "worker");
+// Includes devDependencies (prod: false) specifically to bring the `prisma`
+// CLI + its schema-engine binary along — needed at runtime to apply pending
+// migrations to an existing user's db on upgrade (see step 5 below and
+// main.js's ensureDatabase()). Every other deployApp() call stays --prod
+// since api/worker/web only ever need @prisma/client, not the full CLI.
+deployApp("@an-tg/database", "migrate", { prod: false });
 
 console.log("\n== 3. Copying web standalone build ==");
 const webOut = path.join(RESOURCES, "web");

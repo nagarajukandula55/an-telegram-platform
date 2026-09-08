@@ -1,5 +1,5 @@
 const { app, BrowserWindow, shell, dialog } = require("electron");
-const { spawn } = require("node:child_process");
+const { spawn, execFileSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -51,11 +51,43 @@ function ensureDataDir() {
 
 // First launch only: seed the SQLite file from the pre-migrated template
 // bundled with the app (built by build.js via `prisma migrate deploy`),
-// so no migration engine has to run on the user's machine.
+// so no migration engine has to run on the user's machine on a fresh install.
 function ensureDatabase() {
   if (fs.existsSync(DB_PATH)) return;
   const template = path.join(RESOURCES, "db-template", "template.db");
   fs.copyFileSync(template, DB_PATH);
+}
+
+// Every launch, on an *existing* db: applies any migrations added since the
+// user's last-installed version (a plain "does this file exist" check can't
+// tell an up-to-date db from a stale one after an upgrade — this bit a real
+// install once, api/worker crash-looping against
+// `Invalid prisma.connector.findMany() invocation: column ... does not
+// exist`). `migrate deploy` only applies pending migrations and is a no-op
+// (fast) when already current, so it's safe/cheap to run unconditionally
+// rather than trying to version-detect first. Runs synchronously, before
+// api/worker are spawned, since both would otherwise race a mid-migration db.
+function runPendingMigrations() {
+  const nodeExe = path.join(RESOURCES, "node", "node.exe");
+  const prismaCli = path.join(RESOURCES, "migrate", "node_modules", "prisma", "build", "index.js");
+  const schema = path.join(RESOURCES, "migrate", "prisma", "schema.prisma");
+  if (!fs.existsSync(prismaCli) || !fs.existsSync(schema)) {
+    log("runPendingMigrations: bundled prisma CLI/schema not found, skipping (fresh installs are unaffected — only relevant on upgrade)");
+    return;
+  }
+  log("runPendingMigrations: applying any pending migrations to", DB_PATH);
+  try {
+    const output = execFileSync(nodeExe, [prismaCli, "migrate", "deploy", "--schema", schema], {
+      cwd: path.join(RESOURCES, "migrate"),
+      env: { ...process.env, DATABASE_URL: `file:${DB_PATH}` },
+      windowsHide: true,
+      encoding: "utf8",
+    });
+    log("runPendingMigrations: done\n" + output);
+  } catch (err) {
+    log("runPendingMigrations FAILED — stdout:\n" + (err.stdout ?? "") + "\nstderr:\n" + (err.stderr ?? ""));
+    throw err;
+  }
 }
 
 // Per-install random secrets, generated once and persisted in userData —
@@ -208,6 +240,8 @@ app
       ensureDataDir();
       log("ensureDatabase");
       ensureDatabase();
+      log("runPendingMigrations");
+      runPendingMigrations();
       log("ensureSecrets");
       const secrets = ensureSecrets();
       log("startServices");
