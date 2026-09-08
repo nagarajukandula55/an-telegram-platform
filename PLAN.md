@@ -297,9 +297,10 @@ similar issues extending this):
   rate-limit/template) and `apps/worker`'s workflow graph-resolution logic
   (branch/switch/loop edge selection) — but most of `apps/api`'s HTTP
   layer is still only exercised by manual curl + log inspection.
-- CI pipeline now runs install/typecheck/test/build on every push/PR
-  (`.github/workflows/ci.yml`), but doesn't run lint (no package defines
-  a `lint` script yet) or any integration/e2e suite.
+- [x] CI pipeline now runs install/lint/typecheck/test/build on every
+  push/PR (`.github/workflows/ci.yml`). Lint is a single root-level ESLint
+  9 flat config (`eslint.config.js`, typescript-eslint recommended rules)
+  covering the whole monorepo — no integration/e2e suite yet.
 - [x] Workflow engine now walks a real node/edge graph instead of a flat
   ordered array: `condition` nodes actually branch (true/false edges),
   added `switch` (multi-way, matched against a context field) and `loop`
