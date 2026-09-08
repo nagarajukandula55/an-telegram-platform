@@ -8,6 +8,8 @@ import {
   apiTriggerWorkflow,
   apiWorkflowRuns,
   apiApproveWorkflowRun,
+  apiAiStatus,
+  apiProposeWorkflow,
   WorkflowDto,
   WorkflowDefinitionDto,
 } from "@/lib/api";
@@ -35,6 +37,10 @@ export default function WorkflowsPage() {
   const [error, setError] = useState<string | null>(null);
   const [runsFor, setRunsFor] = useState<string | null>(null);
   const [runs, setRuns] = useState<Array<{ id: string; status: string; startedAt: string; finishedAt: string | null }>>([]);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiDescription, setAiDescription] = useState("");
+  const [aiProposing, setAiProposing] = useState(false);
+  const [proposedDefinition, setProposedDefinition] = useState<WorkflowDefinitionDto | undefined>(undefined);
 
   const refresh = useCallback(() => {
     if (!token) return;
@@ -42,6 +48,10 @@ export default function WorkflowsPage() {
   }, [token]);
 
   useEffect(refresh, [refresh]);
+  useEffect(() => {
+    if (!token) return;
+    apiAiStatus(token).then((r) => setAiEnabled(r.enabled)).catch(() => {});
+  }, [token]);
 
   async function saveWorkflow(definition: WorkflowDefinitionDto) {
     if (!token) return;
@@ -53,6 +63,24 @@ export default function WorkflowsPage() {
       refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create workflow");
+    }
+  }
+
+  async function handleProposeWorkflow() {
+    if (!token || !aiDescription.trim() || !name) return;
+    setError(null);
+    setAiProposing(true);
+    try {
+      const proposal = await apiProposeWorkflow(token, aiDescription);
+      setProposedDefinition({
+        ...proposal,
+        nodes: proposal.nodes.map((n, i) => ({ ...n, position: { x: 40 + (i % 4) * 190, y: 40 + Math.floor(i / 4) * 110 } })),
+      });
+      setMode("builder");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to propose a workflow");
+    } finally {
+      setAiProposing(false);
     }
   }
 
@@ -95,31 +123,60 @@ export default function WorkflowsPage() {
       <h1 className="mb-6 text-xl font-semibold">Workflows</h1>
 
       {mode === null && (
-        <div className="mb-6 flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Workflow name"
-            className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
-          />
-          <button
-            onClick={() => setMode("builder")}
-            disabled={!name}
-            className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            Open visual builder
-          </button>
-          <button
-            onClick={() => setMode("json")}
-            disabled={!name}
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-          >
-            Advanced: raw JSON
-          </button>
+        <div className="mb-6 space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex items-center gap-3">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Workflow name"
+              className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+            <button
+              onClick={() => {
+                setProposedDefinition(undefined);
+                setMode("builder");
+              }}
+              disabled={!name}
+              className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              Open visual builder
+            </button>
+            <button
+              onClick={() => setMode("json")}
+              disabled={!name}
+              className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Advanced: raw JSON
+            </button>
+          </div>
+          {aiEnabled && (
+            <div className="flex items-center gap-2 border-t border-gray-100 pt-3">
+              <input
+                value={aiDescription}
+                onChange={(e) => setAiDescription(e.target.value)}
+                placeholder="✨ Describe the workflow in plain English…"
+                className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+              <button
+                onClick={handleProposeWorkflow}
+                disabled={aiProposing || !name || !aiDescription.trim()}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {aiProposing ? "Proposing…" : "Propose with AI"}
+              </button>
+            </div>
+          )}
+          {aiEnabled && (
+            <p className="text-xs text-gray-400">
+              AI only proposes a starting point, opened in the visual builder below for you to review, edit, and explicitly save — it never creates or runs anything by itself.
+            </p>
+          )}
         </div>
       )}
 
-      {mode === "builder" && <WorkflowBuilder token={token} onSave={saveWorkflow} onCancel={() => setMode(null)} />}
+      {mode === "builder" && (
+        <WorkflowBuilder token={token} initial={proposedDefinition} onSave={saveWorkflow} onCancel={() => setMode(null)} />
+      )}
 
       {mode === "json" && (
         <form onSubmit={handleJsonCreate} className="mb-6 space-y-3 rounded-lg border border-gray-200 bg-white p-4">

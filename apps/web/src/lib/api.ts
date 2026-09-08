@@ -236,6 +236,38 @@ export async function apiCreateGroup(token: string, data: { connectorId: string;
   return handle<GroupDto>(res);
 }
 
+export async function apiAiStatus(token: string) {
+  const res = await fetch(`${API_BASE_URL}/ai/status`, { headers: authHeaders(token), cache: "no-store" });
+  return handle<{ enabled: boolean }>(res);
+}
+
+export async function apiDraftReply(token: string, conversationId: string, tone?: string) {
+  const res = await fetch(`${API_BASE_URL}/ai/draft-reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify({ conversationId, tone }),
+  });
+  return handle<{ draft: string }>(res);
+}
+
+export async function apiTranslate(token: string, text: string, targetLanguage: string) {
+  const res = await fetch(`${API_BASE_URL}/ai/translate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify({ text, targetLanguage }),
+  });
+  return handle<{ translated: string }>(res);
+}
+
+export async function apiProposeWorkflow(token: string, description: string) {
+  const res = await fetch(`${API_BASE_URL}/ai/propose-workflow`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify({ description }),
+  });
+  return handle<WorkflowDefinitionDto>(res);
+}
+
 export interface TeamMemberDto {
   id: string;
   name: string | null;

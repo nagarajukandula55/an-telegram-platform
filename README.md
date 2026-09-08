@@ -50,6 +50,7 @@ account of what's built vs. still open, phase by phase.
 - `packages/messaging-core` — the one send/retry/consent code path every entry point (manual, campaign, workflow) shares
 - `packages/queue` — the embedded job queue: `enqueue()` writes a row, `startQueueWorker()` polls and claims rows
 - `packages/storage` — local-disk attachment store + HMAC-signed, time-limited download URLs (never a public link)
+- `packages/ai-core` — pluggable AI provider abstraction for optional message drafting/translation and workflow proposals (off by default — see `.env.example`'s `AI_PROVIDER_*` vars and `PLAN.md` Phase 9)
 - `connectors/*` — Telegram MTProto, Telegram Bot API, custom-middleware adapters
 
 See `PLAN.md` for exactly what's done vs. still open per phase — in particular the

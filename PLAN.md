@@ -261,8 +261,33 @@ an-telegram-platform/
 
 ## Phase 9 — Optional AI
 
-- [ ] Message drafting/translation (pluggable, off by default)
-- [ ] Natural-language workflow proposals (always require human approval before execution)
+- [x] `packages/ai-core`: a pluggable `AiProvider` interface (one method,
+  `complete()`) with an `OpenAiCompatibleProvider` implementation over
+  plain `fetch()` — works with OpenAI, Azure OpenAI, or a local Ollama/
+  vLLM server, no vendor SDK dependency, matching this platform's
+  connector-agnostic philosophy applied to AI. `getAiProvider()` returns
+  `null` unless both `AI_PROVIDER_URL` and `AI_PROVIDER_API_KEY` are set
+  — off by default, per spec. `apps/api`'s new `/ai` module
+  (`GET /ai/status`, `POST /ai/draft-reply`, `/ai/translate`,
+  `/ai/propose-workflow`) returns a clear 503 rather than silently
+  no-op-ing when unconfigured.
+- [x] Message drafting/translation: `/dashboard/inbox` gained a
+  "✨ Suggest" button (drafts a reply into the input box — the operator
+  still has to click Send) and a per-message "Translate" control, both
+  hidden entirely when AI is disabled (`GET /ai/status`).
+- [x] Natural-language workflow proposals: `/dashboard/workflows` gained
+  a "Propose with AI" input that opens the existing visual builder
+  pre-filled with the proposed nodes/edges — it never creates or
+  activates a workflow itself; the human still has to review, edit, and
+  explicitly click Save, and even a saved workflow doesn't run until
+  separately triggered/scheduled. `helpers.ts`'s `proposeWorkflow()`
+  validates the model's JSON output against the node/edge schema
+  (unknown/malformed node types, dangling `startNodeId`, etc. are
+  rejected with a clear error rather than silently accepted).
+  Verified end-to-end against a running api instance with a stub
+  OpenAI-compatible server: status/translate/propose-workflow/draft-reply
+  all returned correct results with AI configured, and `/ai/translate`
+  correctly 503'd with AI unconfigured (the default).
 
 ---
 

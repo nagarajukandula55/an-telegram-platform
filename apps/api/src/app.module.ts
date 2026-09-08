@@ -9,6 +9,7 @@ import { AttachmentsModule } from "./attachments/attachments.module";
 import { CampaignsModule } from "./campaigns/campaigns.module";
 import { TemplatesModule } from "./templates/templates.module";
 import { ConversationsModule } from "./conversations/conversations.module";
+import { AiModule } from "./ai/ai.module";
 import { WorkflowsModule } from "./workflows/workflows.module";
 import { WebhooksModule } from "./webhooks/webhooks.module";
 
@@ -24,6 +25,7 @@ import { WebhooksModule } from "./webhooks/webhooks.module";
     CampaignsModule,
     TemplatesModule,
     ConversationsModule,
+    AiModule,
     WorkflowsModule,
     WebhooksModule,
   ],

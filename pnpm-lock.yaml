@@ -29,6 +29,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@an-tg/ai-core':
+        specifier: workspace:*
+        version: link:../../packages/ai-core
       '@an-tg/connector-custom-http':
         specifier: workspace:*
         version: link:../../connectors/custom-http
@@ -248,6 +251,18 @@ importers:
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
+
+  packages/ai-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@20.19.43)(terser@5.51.2)
 
   packages/connectors-bootstrap:
     dependencies:

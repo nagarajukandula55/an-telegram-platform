@@ -13,6 +13,7 @@
     "@an-tg/connectors-core": "workspace:*",
     "@an-tg/connectors-bootstrap": "workspace:*",
     "@an-tg/messaging-core": "workspace:*",
+    "@an-tg/ai-core": "workspace:*",
     "@an-tg/connector-telegram-bot": "workspace:*",
     "@an-tg/connector-custom-http": "workspace:*",
     "@an-tg/connector-telegram-mtproto": "workspace:*",

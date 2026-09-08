@@ -9,6 +9,9 @@ import {
   apiSetConversationStatus,
   apiReplyConversation,
   apiListUsers,
+  apiAiStatus,
+  apiDraftReply,
+  apiTranslate,
   ConversationDto,
   TeamMemberDto,
 } from "@/lib/api";
@@ -34,6 +37,8 @@ export default function InboxPage() {
   const [replyBody, setReplyBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [drafting, setDrafting] = useState(false);
 
   const refresh = useCallback(() => {
     if (!token) return;
@@ -44,6 +49,7 @@ export default function InboxPage() {
   useEffect(() => {
     if (!token) return;
     apiListUsers(token).then(setTeam).catch(() => {});
+    apiAiStatus(token).then((r) => setAiEnabled(r.enabled)).catch(() => {});
   }, [token]);
 
   useEffect(() => {
@@ -76,6 +82,20 @@ export default function InboxPage() {
       if (newStatus !== status) setSelectedId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update status");
+    }
+  }
+
+  async function handleSuggestReply() {
+    if (!token || !selectedId) return;
+    setError(null);
+    setDrafting(true);
+    try {
+      const { draft } = await apiDraftReply(token, selectedId);
+      setReplyBody(draft);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to draft a reply");
+    } finally {
+      setDrafting(false);
     }
   }
 
@@ -171,14 +191,22 @@ export default function InboxPage() {
 
             <div className="flex-1 space-y-2 overflow-auto">
               {selected.messages.map((m) => (
-                <div key={m.id} className={`max-w-[70%] rounded px-3 py-2 text-sm ${m.direction === "inbound" ? "bg-gray-100" : "ml-auto bg-indigo-100"}`}>
-                  <p>{m.body}</p>
-                  <p className="mt-0.5 text-[10px] text-gray-400">{new Date(m.createdAt).toLocaleString()}</p>
-                </div>
+                <MessageBubble key={m.id} message={m} token={token} aiEnabled={aiEnabled} />
               ))}
             </div>
 
             <form onSubmit={handleReply} className="mt-3 flex gap-2 border-t border-gray-100 pt-3">
+              {aiEnabled && (
+                <button
+                  type="button"
+                  onClick={handleSuggestReply}
+                  disabled={drafting}
+                  title="AI-draft a reply for you to review and edit — never sent automatically"
+                  className="rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {drafting ? "Drafting…" : "✨ Suggest"}
+                </button>
+              )}
               <input
                 value={replyBody}
                 onChange={(e) => setReplyBody(e.target.value)}
@@ -189,6 +217,55 @@ export default function InboxPage() {
                 {sending ? "Sending…" : "Send"}
               </button>
             </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({
+  message,
+  token,
+  aiEnabled,
+}: {
+  message: { id: string; direction: string; body: string | null; createdAt: string };
+  token: string | null;
+  aiEnabled: boolean;
+}) {
+  const [translated, setTranslated] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useState("English");
+
+  async function handleTranslate() {
+    if (!token || !message.body) return;
+    setTranslating(true);
+    try {
+      const { translated: result } = await apiTranslate(token, message.body, targetLanguage);
+      setTranslated(result);
+    } catch {
+      // Best-effort — leave the original text visible if translation fails.
+    } finally {
+      setTranslating(false);
+    }
+  }
+
+  return (
+    <div className={`max-w-[70%] rounded px-3 py-2 text-sm ${message.direction === "inbound" ? "bg-gray-100" : "ml-auto bg-indigo-100"}`}>
+      <p>{message.body}</p>
+      {translated && <p className="mt-1 border-t border-black/10 pt-1 italic text-gray-600">{translated}</p>}
+      <div className="mt-0.5 flex items-center justify-between gap-2">
+        <p className="text-[10px] text-gray-400">{new Date(message.createdAt).toLocaleString()}</p>
+        {aiEnabled && message.body && (
+          <div className="flex items-center gap-1">
+            <input
+              value={targetLanguage}
+              onChange={(e) => setTargetLanguage(e.target.value)}
+              className="w-16 rounded border border-gray-300 px-1 py-0.5 text-[10px]"
+            />
+            <button onClick={handleTranslate} disabled={translating} className="text-[10px] text-indigo-600 hover:underline disabled:opacity-50">
+              {translating ? "…" : "Translate"}
+            </button>
           </div>
         )}
       </div>
